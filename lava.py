@@ -115,7 +115,7 @@ def update_workers():
 
 def update_devices():
     now = time.time()
-    y = 0
+    y = -1
     if cfg["dpad"] == None:
         cfg["dpad"] = curses.newpad(100, 100)
     if not "device" in cache:
@@ -129,13 +129,12 @@ def update_devices():
         return
     cfg["dpad"].clear()
     dlist = cache["device"]["dlist"]
-    #cfg["dpad"].addstr(y, 0, "Devices (refresh %d)" % (now - cache["device"]["time"]))
     di = 0
     for device in dlist:
-        if di > 20:
-            di += 1
-            cfg["devices"]["max"] = di
-            continue
+        #if di > 20:
+        #    di += 1
+        #    cfg["devices"]["max"] = di
+        #    continue
         y += 1
         di += 1
         cfg["devices"]["count"] = di
@@ -159,13 +158,6 @@ def update_devices():
             cfg["dpad"].addstr(y, 26, device["health"])
         cfg["dpad"].addstr(y, 37, device["state"])
         cfg["dpad"].addstr(y, 47, ddetail["worker"])
-    cfg["dpad"].addstr(0, 0, "Devices %d/%d (refresh %d/%d)" %
-        (
-        cfg["devices"]["count"],
-        cfg["devices"]["max"],
-        now - cache["device"]["time"],
-        cfg["devices"]["refresh"]
-        ))
 
 def update_jobs():
     now = time.time()
@@ -241,8 +233,23 @@ def main(stdscr):
         # devices
         if cfg["devices"]["enable"]:
             update_devices()
-            cfg["dpad"].refresh(0, 0, y, 0, rows - 1, cols - 1)
-            y += cfg["devices"]["count"] + 1
+            y_max = rows - 15
+            dismax = y_max - y - 1
+            stdscr.addstr(y, 0, "Devices %d-%d/%d (refresh %d/%d)" %
+                (
+                cfg["devices"]["offset"],
+                dismax + cfg["devices"]["offset"],
+                cfg["devices"]["max"],
+                now - cache["device"]["time"],
+                cfg["devices"]["refresh"]
+                ))
+            y += 1
+            if cfg["select"] < cfg["devices"]["offset"]:
+                cfg["select"] = cfg["devices"]["offset"] + 1
+            if cfg["select"] > dismax + cfg["devices"]["offset"]:
+                cfg["select"] = cfg["devices"]["offset"] + 1
+            cfg["dpad"].refresh(cfg["devices"]["offset"], 0, y, 0, rows - 1, cols - 1)
+            y = y_max + 1
 
         update_jobs()
         cfg["jpad"].refresh(0, 0, y, 0, rows - 1, cols - 1)
@@ -305,9 +312,19 @@ def main(stdscr):
             if cfg["tab"] == 1:
                 cache["device"]["redraw"] = True
         elif c == curses.KEY_PPAGE:
-            vjob_off -= 100
+            if cfg["tab"] == 1:
+                cfg["devices"]["offset"] -= 5
+                if cfg["devices"]["offset"] < 0:
+                    cfg["devices"]["offset"] = 0
+            else:
+                vjob_off -= 100
         elif c == curses.KEY_NPAGE:
-            vjob_off += 100
+            if cfg["tab"] == 1:
+                cfg["devices"]["offset"] += 5
+                if cfg["devices"]["offset"] > cfg["devices"]["max"] - 20:
+                    cfg["devices"]["offset"] = 0
+            else:
+                vjob_off += 100
         elif c == 9:
             cfg["tab"] += 1
         elif cmd > 0:

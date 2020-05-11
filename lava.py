@@ -37,6 +37,11 @@ cfg["dpad"] = None
 cfg["jpad"] = None
 cfg["sdev"] = None
 cfg["lab"] = None
+# view job
+cfg["wjob"] = None
+cfg["vjob"] = None
+cfg["vjpad"] = None
+cfg["vjob_off"] = 0
 
 try:
     tlabsfile = open("labs.yaml")
@@ -233,9 +238,7 @@ def main(stdscr):
     msg = ""
     cmd = 0
     curses.init_pair(1, curses.COLOR_RED, curses.COLOR_BLACK)
-    vjob = None
-    vjob_off = 0
-    pad = None
+    stdscr.timeout(200)
 
     exit = False
     while not exit:
@@ -250,7 +253,8 @@ def main(stdscr):
         if cfg["tab"] == 2:
             stdscr.addstr(1, 0, "JOB HELP: v")
         stdscr.addstr(2, 0, msg)
-        cfg["sjob"] = None
+        if cfg["tab"] != 2:
+            cfg["sjob"] = None
 
         y = 3
         if cfg["workers"]["enable"]:
@@ -294,9 +298,10 @@ def main(stdscr):
             update_jobs()
             cfg["jpad"].refresh(0, 0, y, 0, rows - 1, cols - 1)
 
-        if vjob is not None and pad is None:
-            pad = curses.newpad(JOB_MAX_LINE, 5000)
-            r = cfg["lserver"].scheduler.job_output(vjob)
+        if cfg["vjob"] != None and cfg["wjob"] == None:
+            cfg["wjob"] = curses.newwin(rows - 8, cols - 8, 4, 4)
+            cfg["vjpad"] = curses.newpad(JOB_MAX_LINE, 5000)
+            r = cfg["lserver"].scheduler.job_output(cfg["vjob"])
             logs = yaml.unsafe_load(r.data)
             y = 2
             for line in logs:
@@ -305,18 +310,18 @@ def main(stdscr):
                     continue
                 if line['lvl'] == 'info' or line['lvl'] == 'debug' or line['lvl'] == 'target' or line['lvl'] == 'input':
                     if isinstance(line["msg"], list):
-                        pad.addstr(y, 0, str(line))
+                        cfg["vjpad"].addstr(y, 0, str(line))
                         y += 1
                         continue
-                    pad.addstr(y, 0, line["msg"].rstrip('\0'))
+                    cfg["vjpad"].addstr(y, 0, line["msg"].rstrip('\0\r\n'))
                     y += 1
                     continue
                 if line['lvl'] == 'error':
-                    pad.addstr(y, 0, line["msg"], curses.color_pair(1))
+                    cfg["vjpad"].addstr(y, 0, line["msg"], curses.color_pair(1))
                     y += 1
                     continue
                 if line['lvl'] == 'results':
-                    pad.addstr(y, 0, "TEST: %s %s %s" % (line["msg"]["case"], line["msg"]["definition"], line["msg"]["result"]))
+                    cfg["vjpad"].addstr(y, 0, "TEST: %s %s %s" % (line["msg"]["case"], line["msg"]["definition"], line["msg"]["result"]))
                     y += 1
                     # TODO error_msg
                     #pad.addstr(y, 0, str(line))
@@ -324,21 +329,24 @@ def main(stdscr):
                     continue
                 if isinstance(line["msg"], dict):
                     for msg in line["msg"]:
-                        pad.addstr(y, 0, msg)
+                        cfg["vjpad"].addstr(y, 0, msg)
                         y += 1
                 elif isinstance(line["msg"], list):
-                    pad.addstr(y, 0, str(line))
+                    cfg["vjpad"].addstr(y, 0, str(line))
                     y += 1
                 else:
-                    pad.addstr(y, 0, line["msg"].rstrip('\0'))
+                    cfg["vjpad"].addstr(y, 0, line["msg"].rstrip('\0'))
                 y += 1
-                pad.addstr(y, 0, str(line))
+                cfg["vjpad"].addstr(y, 0, str(line))
                 y += 1
-            pad.addstr(0, 0, "LINES: %d" % y)
-        if vjob is not None:
-            pad.refresh(vjob_off, 0, 2, 55, rows - 1, cols - 1)
+            cfg["vjpad"].addstr(0, 0, "LINES: %d" % y)
 
         stdscr.refresh()
+        if cfg["wjob"] != None:
+            cfg["wjob"].box("=", "-")
+            cfg["wjob"].refresh()
+        if cfg["vjpad"] is not None:
+            cfg["vjpad"].refresh(cfg["vjob_off"], 0, 9, 9, rows - 9, cols - 9)
         #curses.doupdate()
         y += 1
         msg = ""
@@ -365,14 +373,14 @@ def main(stdscr):
                 if cfg["devices"]["offset"] < 0:
                     cfg["devices"]["offset"] = 0
             else:
-                vjob_off -= 100
+                cfg["vjob_off"] -= 100
         elif c == curses.KEY_NPAGE:
             if cfg["tab"] == 1:
                 cfg["devices"]["offset"] += 5
                 if cfg["devices"]["offset"] > cfg["devices"]["max"] - 20:
                     cfg["devices"]["offset"] = 0
             else:
-                vjob_off += 100
+                cfg["vjob_off"] += 100
         elif c == 9:
             # TAB
             if cfg["tab"] == 0:
@@ -432,9 +440,9 @@ def main(stdscr):
                 cmd = 0
         elif c == ord('x'):
             cmd = 0
-            vjob = None
-            if pad != None:
-                pad.clear()
+            cfg["vjob"] = None
+            if cfg["vjpad"] != None:
+                cfg["vjpad"].clear()
         elif c == ord('r'):
             if cfg["tab"] == 0:
                 cache["workers"]["time"] = 0
@@ -451,11 +459,11 @@ def main(stdscr):
         elif c == ord('v'):
             if cfg["tab"] == 2:
                 msg = "View job %s" % cfg["sjob"]
-                vjob = cfg["sjob"]
+                cfg["vjob"] = cfg["sjob"]
             else:
                 msg = "Invalid"
-        if vjob_off < 0:
-            vjob_off = 0
+        if cfg["vjob_off"] < 0:
+            cfg["vjob_off"] = 0
             msg = "STOP"
         if cfg["tab"] > 2:
             cfg["tab"] = 0

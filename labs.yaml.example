@@ -1,0 +1,3 @@
+labs:
+  - name: mylavalab
+    lavauri: http://admin:adminpass@127.0.0.1/RPC2

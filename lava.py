@@ -84,7 +84,7 @@ def switch_lab():
 
 def update_workers():
     now = time.time()
-    y = 0
+    y = -1
     if cfg["wpad"] == None:
         cfg["wpad"] = curses.newpad(100, 100)
     if not "workers" in cache:
@@ -98,7 +98,6 @@ def update_workers():
         return
     cfg["wpad"].clear()
     wlist = cache["workers"]["wlist"]
-    cfg["wpad"].addstr(y, 0, "Workers (refresh %d/%d)" % (now - cache["workers"]["time"], cfg["workers"]["refresh"]))
     wi = 0
     for worker in wlist:
         wdet = cfg["lserver"].scheduler.workers.show(worker)
@@ -200,6 +199,32 @@ def update_jobs():
             cfg["jpad"].addstr(y, 29, job["actual_device"])
     cache["jobs"]["redraw"] = False
 
+def check_limits():
+    if cfg["select"] < 1:
+        cfg["select"] = 1
+    # verify limits for worker
+    if cfg["tab"] == 0:
+        if cfg["select"] > cfg["workers"]["count"]:
+            cfg["select"] = cfg["workers"]["count"]
+    # verify limits for devices
+    if cfg["tab"] == 1:
+        # check offset
+        if cfg["devices"]["offset"] > cfg["devices"]["max"] - cfg["devices"]["display"]:
+            cfg["devices"]["offset"] = cfg["devices"]["max"] - cfg["devices"]["display"]
+        # check select
+        if cfg["select"] > cfg["devices"]["max"]:
+            cfg["select"] = cfg["devices"]["max"]
+        if cfg["select"] <= cfg["devices"]["offset"] and cfg["devices"]["offset"] > 0:
+            cfg["devices"]["offset"] -= 1
+            cache["device"]["redraw"] = True
+        if cfg["select"] > cfg["devices"]["offset"] + cfg["devices"]["display"]:
+            cfg["devices"]["offset"] += 1
+            cache["device"]["redraw"] = True
+    # verify limits for jobs
+    if cfg["tab"] == 2:
+        if cfg["select"] > cfg["jobs"]["count"]:
+            cfg["select"] = cfg["jobs"]["count"]
+
 def main(stdscr):
     # Clear screen
     c = 0
@@ -217,7 +242,7 @@ def main(stdscr):
         now = time.time()
         rows, cols = stdscr.getmaxyx()
         stdscr.addstr(0, 4, str(c))
-        stdscr.addstr(0, 10, "Screen %dx%d Lab: %s" % (cols, rows, cfg["lab"]))
+        stdscr.addstr(0, 10, "Screen %dx%d Lab: %s Select: %d" % (cols, rows, cfg["lab"], cfg["select"]))
         # print help
         stdscr.addstr(0, rows - 2, "HELP: UP DOWN TAB")
         if cfg["tab"] == 1:
@@ -230,33 +255,40 @@ def main(stdscr):
         y = 3
         if cfg["workers"]["enable"]:
             update_workers()
+            check_limits()
+            
+            stdscr.addstr(y, 0, "Workers %d-%d/%d (refresh %d/%d)" %
+                (
+                1,
+                cfg["workers"]["count"],
+                cfg["workers"]["count"],
+                now - cache["workers"]["time"],
+                cfg["workers"]["refresh"]
+                ))
+            y += 1
             cfg["wpad"].refresh(0, 0, y, 0, rows - 1, cols - 1)
-            y += cfg["workers"]["count"] + 2
+            y += cfg["workers"]["count"] + 1
 
         # devices
         if cfg["devices"]["enable"]:
             update_devices()
             y_max = rows - 15
             cfg["devices"]["display"] = y_max - y
-            stdscr.addstr(y, 0, "Devices %d-%d/%d (refresh %d/%d) sel=%d" %
+            if cfg["devices"]["display"] > cfg["devices"]["count"]:
+                cfg["devices"]["display"] = cfg["devices"]["count"]
+            stdscr.addstr(y, 0, "Devices %d-%d/%d (refresh %d/%d)" %
                 (
                 cfg["devices"]["offset"] + 1,
-                cfg["devices"]["display"] + cfg["devices"]["offset"] + 1,
+                cfg["devices"]["display"] + cfg["devices"]["offset"],
                 cfg["devices"]["max"],
                 now - cache["device"]["time"],
-                cfg["devices"]["refresh"],
-                cfg["select"]
+                cfg["devices"]["refresh"]
                 ))
             y += 1
             #verify that select is printable
-            if cfg["select"] < cfg["devices"]["offset"]:
-                cfg["select"] = cfg["devices"]["offset"] + 1
-            if cfg["select"] > cfg["devices"]["display"] + cfg["devices"]["offset"]:
-                cfg["select"] = cfg["devices"]["offset"] + 1
-            if cfg["select"] > cfg["devices"]["max"]:
-                cfg["select"] = cfg["devices"]["max"]
-            cfg["dpad"].refresh(cfg["devices"]["offset"], 0, y, 0, rows - 1, cols - 1)
-            y = y_max + 1
+            check_limits()
+            cfg["dpad"].refresh(cfg["devices"]["offset"], 0, y, 0, y_max, cols - 1)
+            y += cfg["devices"]["display"]
 
         if cfg["jobs"]["enable"]:
             update_jobs()
@@ -306,8 +338,8 @@ def main(stdscr):
         if vjob is not None:
             pad.refresh(vjob_off, 0, 2, 55, rows - 1, cols - 1)
 
-        #stdscr.refresh()
-        curses.doupdate()
+        stdscr.refresh()
+        #curses.doupdate()
         y += 1
         msg = ""
         c = stdscr.getch()
@@ -342,7 +374,22 @@ def main(stdscr):
             else:
                 vjob_off += 100
         elif c == 9:
-            cfg["tab"] += 1
+            # TAB
+            if cfg["tab"] == 0:
+                cfg["tab"] = 1
+                cache["workers"]["redraw"] = True
+                cache["device"]["redraw"] = True
+                msg = "Switched to devices tab"
+            elif cfg["tab"] == 1:
+                cfg["tab"] = 2
+                cache["device"]["redraw"] = True
+                cache["jobs"]["redraw"] = True
+                msg = "Switched to jobs tab"
+            else:
+                cfg["tab"] = 0
+                cache["jobs"]["redraw"] = True
+                cache["workers"]["redraw"] = True
+                msg = "Switched to worker tab"
         elif cmd > 0:
             # want a subcommand
             if cmd == ord('h'):
@@ -386,7 +433,8 @@ def main(stdscr):
         elif c == ord('x'):
             cmd = 0
             vjob = None
-            pad.clear()
+            if pad != None:
+                pad.clear()
         elif c == ord('r'):
             if cfg["tab"] == 0:
                 cache["workers"]["time"] = 0
@@ -413,26 +461,8 @@ def main(stdscr):
             cfg["tab"] = 0
         if cfg["tab"] == 0 and not cfg["workers"]["enable"]:
             cfg["tab"] = 1
-        if c == 27:
+        if c == 27 or c == ord('q'):
             exit = True
-        if cfg["tab"] == 0 and cfg["select"] > cfg["workers"]["count"]:
-            cfg["select"] = cfg["workers"]["count"]
-        if cfg["tab"] == 1 and cfg["select"] > cfg["devices"]["count"]:
-            cfg["select"] = cfg["devices"]["count"]
-        if cfg["tab"] == 2 and cfg["select"] > cfg["jobs"]["count"]:
-            cfg["select"] = cfg["jobs"]["count"]
-        if cfg["select"] < 1:
-            cfg["select"] = 1
-        if cfg["tab"] == 1:
-            # check offset
-            if cfg["devices"]["offset"] > cfg["devices"]["max"] - cfg["devices"]["display"]:
-                cfg["devices"]["offset"] = cfg["devices"]["max"] - cfg["devices"]["display"]
-            # check select
-            if cfg["select"] <= cfg["devices"]["offset"] and cfg["devices"]["offset"] > 0:
-                cfg["devices"]["offset"] -= 1
-            if cfg["select"] >= cfg["devices"]["offset"] + cfg["devices"]["display"] + 1:
-                cfg["devices"]["offset"] += 1
-            if cfg["select"] > cfg["devices"]["max"]:
-                cfg["select"] = cfg["devices"]["max"]
+        check_limits()
 
 wrapper(main)

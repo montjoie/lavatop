@@ -24,6 +24,7 @@ cfg["devices"]["refresh"] = 20
 cfg["devices"]["offset"] = 0
 # how many device are displayed
 cfg["devices"]["display"] = 0
+cfg["devices"]["select"] = []
 cfg["jobs"] = {}
 cfg["jobs"]["enable"] = True
 cfg["jobs"]["count"] = 0
@@ -37,11 +38,14 @@ cfg["dpad"] = None
 cfg["jpad"] = None
 cfg["sdev"] = None
 cfg["lab"] = None
+
 # view job
 cfg["wjob"] = None
 cfg["vjob"] = None
 cfg["vjpad"] = None
 cfg["vjob_off"] = 0
+# indexed by jobid
+wj = {}
 
 try:
     tlabsfile = open("labs.yaml")
@@ -52,10 +56,14 @@ labs = yaml.safe_load(tlabsfile)
 for lab in labs["labs"]:
     if "disabled" in lab and lab["disabled"]:
         continue
-    cfg["lab"] = lab["name"]
+    cfg["lab"] = lab
     break
+if cfg["lab"] == None:
+    sys.exit(1)
 LAVAURI = lab["lavauri"]
 cfg["lserver"] = xmlrpc.client.ServerProxy(LAVAURI, allow_none=True)
+if not "DEVICENAME_LENMAX" in lab:
+    cfg["lab"]["DEVICENAME_LENMAX"] = 24
 
 def switch_lab():
     new = None
@@ -66,7 +74,7 @@ def switch_lab():
         if usenext:
             new = lab
             break
-        if cfg["lab"] == lab["name"]:
+        if cfg["lab"]["name"] == lab["name"]:
             usenext = True
     if new == None:
         # use the first
@@ -75,10 +83,10 @@ def switch_lab():
             break
 
     if new != None:
-        if cfg["lab"] == new["name"]:
+        if cfg["lab"]["name"] == new["name"]:
             return "already this lab"
         #real switch
-        cfg["lab"] = new["name"]
+        cfg["lab"] = new
         LAVAURI = new["lavauri"]
         cfg["lserver"] = xmlrpc.client.ServerProxy(LAVAURI, allow_none=True)
         cache["device"]["time"] = 0
@@ -124,7 +132,7 @@ def update_devices():
     now = time.time()
     y = -1
     if cfg["dpad"] == None:
-        cfg["dpad"] = curses.newpad(100, 100)
+        cfg["dpad"] = curses.newpad(100, cfg["cols"])
     if not "device" in cache:
         cache["device"] = {}
         cache["device"]["time"] = 0
@@ -134,10 +142,12 @@ def update_devices():
         cache["device"]["redraw"] = True
     if not cache["device"]["redraw"]:
         return
+    cache["device"]["redraw"] = False
     cfg["dpad"].clear()
     dlist = cache["device"]["dlist"]
     di = 0
     for device in dlist:
+        x = 4
         y += 1
         di += 1
         cfg["devices"]["count"] = di
@@ -150,18 +160,30 @@ def update_devices():
             cache["device"][dname] = cfg["lserver"].scheduler.devices.show(dname)
             cache["device"][dname]["time"] = time.time()
         ddetail = cache["device"][dname]
+
+        if dname in cfg["devices"]["select"]:
+            cfg["dpad"].addstr(y, 0, "[x]")
+        else:
+            cfg["dpad"].addstr(y, 0, "[ ]")
         if cfg["select"] == di and cfg["tab"] == 1:
-            cfg["dpad"].addstr(y, 0, device["hostname"], curses.A_BOLD)
+            cfg["dpad"].addstr(y, x, device["hostname"], curses.A_BOLD)
             cfg["sdev"] = dname
         else:
-            cfg["dpad"].addstr(y, 0, device["hostname"])
+            cfg["dpad"].addstr(y, x, device["hostname"])
+        if len(dname) > cfg["lab"]["DEVICENAME_LENMAX"]:
+            cfg["lab"]["DEVICENAME_LENMAX"] = len(dname)
+            cache["device"]["redraw"] = True
+        x += cfg["lab"]["DEVICENAME_LENMAX"] + 1
         if device["health"] == 'Bad':
-            cfg["dpad"].addstr(y, 26, device["health"], curses.color_pair(1))
+            cfg["dpad"].addstr(y, x, device["health"], curses.color_pair(1))
         else:
-            cfg["dpad"].addstr(y, 26, device["health"])
-        cfg["dpad"].addstr(y, 37, device["state"])
-        cfg["dpad"].addstr(y, 47, ddetail["worker"])
-    cache["device"]["redraw"] = False
+            cfg["dpad"].addstr(y, x, device["health"])
+        x += 14
+        cfg["dpad"].addstr(y, x, device["state"])
+        x += 8
+        # TODO add color according to worker state
+        cfg["dpad"].addstr(y, x, ddetail["worker"])
+        x += 10
 
 def update_jobs():
     now = time.time()
@@ -230,6 +252,54 @@ def check_limits():
         if cfg["select"] > cfg["jobs"]["count"]:
             cfg["select"] = cfg["jobs"]["count"]
 
+# update the vjpad with content of job vjob
+def update_job(jobid):
+    if jobid == None:
+        return
+    if not jobid in wj:
+        wj[jobid] = {}
+        wj[jobid]["wjob"] = curses.newwin(cfg["rows"] - 8, cfg["cols"] - 8, 4, 4)
+        wj[jobid]["vjpad"] = curses.newpad(JOB_MAX_LINE, 5000)
+        r = cfg["lserver"].scheduler.job_output(jobid)
+        logs = yaml.unsafe_load(r.data)
+        y = 2
+        for line in logs:
+            if y > JOB_MAX_LINE:
+                y += 1
+                continue
+            if line['lvl'] == 'info' or line['lvl'] == 'debug' or line['lvl'] == 'target' or line['lvl'] == 'input':
+                if line["msg"] == None:
+                    continue
+                if isinstance(line["msg"], list):
+                    wj[jobid]["vjpad"].addstr(y, 0, str(line))
+                    y += 1
+                    continue
+                wj[jobid]["vjpad"].addstr(y, 0, line["msg"].replace('\0', ''))
+                y += 1
+                continue
+            if line['lvl'] == 'error':
+                wj[jobid]["vjpad"].addstr(y, 0, line["msg"], curses.color_pair(1))
+                y += 1
+                continue
+            if line['lvl'] == 'results':
+                wj[jobid]["vjpad"].addstr(y, 0, "TEST: %s %s %s" % (line["msg"]["case"], line["msg"]["definition"], line["msg"]["result"]))
+                y += 1
+                    # TODO error_msg
+                    #pad.addstr(y, 0, str(line))
+                    #y += 1
+                continue
+            if isinstance(line["msg"], dict):
+                for msg in line["msg"]:
+                    wj[jobid]["vjpad"].addstr(y, 0, msg)
+                    y += 1
+            elif isinstance(line["msg"], list):
+                wj[jobid]["vjpad"].addstr(y, 0, str(line))
+                y += 1
+            else:
+                wj[jobid]["vjpad"].addstr(y, 0, line["msg"].rstrip('\0'))
+                y += 1
+        wj[jobid]["wjob"].addstr(1, 1, "JOBID: %s LINES: %d" % (jobid, y))
+
 def main(stdscr):
     # Clear screen
     c = 0
@@ -244,8 +314,10 @@ def main(stdscr):
     while not exit:
         now = time.time()
         rows, cols = stdscr.getmaxyx()
+        cfg["rows"] = rows
+        cfg["cols"] = cols
         stdscr.addstr(0, 4, str(c))
-        stdscr.addstr(0, 10, "Screen %dx%d Lab: %s Select: %d" % (cols, rows, cfg["lab"], cfg["select"]))
+        stdscr.addstr(0, 10, "Screen %dx%d Lab: %s Select: %d" % (cols, rows, cfg["lab"]["name"], cfg["select"]))
         # print help
         stdscr.addstr(0, rows - 2, "HELP: UP DOWN TAB")
         if cfg["tab"] == 1:
@@ -298,55 +370,15 @@ def main(stdscr):
             update_jobs()
             cfg["jpad"].refresh(0, 0, y, 0, rows - 1, cols - 1)
 
-        if cfg["vjob"] != None and cfg["wjob"] == None:
-            cfg["wjob"] = curses.newwin(rows - 8, cols - 8, 4, 4)
-            cfg["vjpad"] = curses.newpad(JOB_MAX_LINE, 5000)
-            r = cfg["lserver"].scheduler.job_output(cfg["vjob"])
-            logs = yaml.unsafe_load(r.data)
-            y = 2
-            for line in logs:
-                if y > JOB_MAX_LINE:
-                    y += 1
-                    continue
-                if line['lvl'] == 'info' or line['lvl'] == 'debug' or line['lvl'] == 'target' or line['lvl'] == 'input':
-                    if isinstance(line["msg"], list):
-                        cfg["vjpad"].addstr(y, 0, str(line))
-                        y += 1
-                        continue
-                    cfg["vjpad"].addstr(y, 0, line["msg"].rstrip('\0\r\n'))
-                    y += 1
-                    continue
-                if line['lvl'] == 'error':
-                    cfg["vjpad"].addstr(y, 0, line["msg"], curses.color_pair(1))
-                    y += 1
-                    continue
-                if line['lvl'] == 'results':
-                    cfg["vjpad"].addstr(y, 0, "TEST: %s %s %s" % (line["msg"]["case"], line["msg"]["definition"], line["msg"]["result"]))
-                    y += 1
-                    # TODO error_msg
-                    #pad.addstr(y, 0, str(line))
-                    #y += 1
-                    continue
-                if isinstance(line["msg"], dict):
-                    for msg in line["msg"]:
-                        cfg["vjpad"].addstr(y, 0, msg)
-                        y += 1
-                elif isinstance(line["msg"], list):
-                    cfg["vjpad"].addstr(y, 0, str(line))
-                    y += 1
-                else:
-                    cfg["vjpad"].addstr(y, 0, line["msg"].rstrip('\0'))
-                y += 1
-                cfg["vjpad"].addstr(y, 0, str(line))
-                y += 1
-            cfg["vjpad"].addstr(0, 0, "LINES: %d" % y)
+        if cfg["vjob"] != None:
+            update_job(cfg["vjob"])
 
         stdscr.refresh()
-        if cfg["wjob"] != None:
-            cfg["wjob"].box("=", "-")
-            cfg["wjob"].refresh()
-        if cfg["vjpad"] is not None:
-            cfg["vjpad"].refresh(cfg["vjob_off"], 0, 9, 9, rows - 9, cols - 9)
+
+        if cfg["vjob"] != None:
+            wj[cfg["vjob"]]["wjob"].box("=", "-")
+            wj[cfg["vjob"]]["wjob"].refresh()
+            wj[cfg["vjob"]]["vjpad"].refresh(cfg["vjob_off"], 0, 9, 9, rows - 9, cols - 9)
         #curses.doupdate()
         y += 1
         msg = ""
@@ -369,18 +401,34 @@ def main(stdscr):
                 cache["jobs"]["redraw"] = True
         elif c == curses.KEY_PPAGE:
             if cfg["tab"] == 1:
+                #scroll devices
                 cfg["devices"]["offset"] -= 5
+                cache["device"]["redraw"] = True
                 if cfg["devices"]["offset"] < 0:
                     cfg["devices"]["offset"] = 0
+                if cfg["select"] > cfg["devices"]["offset"] + cfg["devices"]["display"]:
+                    cfg["select"] = cfg["devices"]["offset"] + cfg["devices"]["display"]
             else:
+                # scroll job output
                 cfg["vjob_off"] -= 100
         elif c == curses.KEY_NPAGE:
             if cfg["tab"] == 1:
+                #scroll devices
                 cfg["devices"]["offset"] += 5
+                cache["device"]["redraw"] = True
                 if cfg["devices"]["offset"] > cfg["devices"]["max"] - 20:
                     cfg["devices"]["offset"] = 0
+                if cfg["select"] < cfg["devices"]["offset"]:
+                    cfg["select"] = cfg["devices"]["offset"]
             else:
+                # scroll job output
                 cfg["vjob_off"] += 100
+        elif c == ord(" "):
+            if cfg["tab"] == 1:
+                if cfg["sdev"] in cfg["devices"]["select"]:
+                    cfg["devices"]["select"].remove(cfg["sdev"])
+                else:
+                    cfg["devices"]["select"].append(cfg["sdev"])
         elif c == 9:
             # TAB
             if cfg["tab"] == 0:

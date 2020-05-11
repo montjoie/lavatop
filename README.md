@@ -9,15 +9,19 @@ In all tab:
 * j togge jobs tab
 * r refresh current tab
 * R refresh all tabs
+* x close window (for job window)
 * ESC to quit
+* space: toggle selection
 
 ### in workers tab
+TODO set maintenance
 ### in device tab
 * h for set health
 ** u for unknow
 ** m for maintenance
 ### in jobs tab
 * v view job
+** TODO rerun
 
 ## labs.yaml format
 ```

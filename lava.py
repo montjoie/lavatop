@@ -550,6 +550,7 @@ def main(stdscr):
                 else:
                     cfg["workers"]["select"].append(cfg["swk"])
                 cache["device"]["redraw"] = True
+                cache["workers"]["redraw"] = True
             if cfg["tab"] == 1:
                 if cfg["sdev"] in cfg["devices"]["select"]:
                     cfg["devices"]["select"].remove(cfg["sdev"])

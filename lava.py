@@ -462,7 +462,7 @@ def main(stdscr):
             cfg["jpad"].refresh(0, 0, y + 1, 0, rows - 1, cols - 1)
             stdscr.addstr(y, 0, "Jobs 1-%d/?? (refresh %d/%d)" % (cfg["jobs"]["display"], now - cache["jobs"]["time"], cfg["jobs"]["refresh"]))
 
-        if cfg["wjobs"] == None:
+        if cfg["wjobs"] == None and cfg["sc"] < cfg["cols"] - 30:
             cfg["wjobs"] = curses.newwin(cfg["rows"] - 4, cfg["cols"] - cfg["sc"], 4, cfg["sc"])
         if cfg["wjobs"] != None:
             cfg["wjobs"].box("|", "-")

@@ -39,6 +39,8 @@ cfg["dpad"] = None
 cfg["jpad"] = None
 cfg["sdev"] = None
 cfg["lab"] = None
+# the status pad
+cfg["spad"] = None
 
 # view job
 cfg["wjob"] = None
@@ -65,6 +67,8 @@ LAVAURI = lab["lavauri"]
 cfg["lserver"] = xmlrpc.client.ServerProxy(LAVAURI, allow_none=True)
 if not "DEVICENAME_LENMAX" in lab:
     cfg["lab"]["DEVICENAME_LENMAX"] = 24
+if not "WKNAME_LENMAX" in lab:
+    cfg["lab"]["WKNAME_LENMAX"] = 10
 
 def switch_lab():
     new = None
@@ -95,6 +99,8 @@ def switch_lab():
         cache["jobs"]["time"] = 0
         if not "DEVICENAME_LENMAX" in new:
             cfg["lab"]["DEVICENAME_LENMAX"] = 24
+        if not "WKNAME_LENMAX" in new:
+            cfg["lab"]["WKNAME_LENMAX"] = 10
         return "Switched to %s" % new["name"]
     return "switch error"
 
@@ -113,6 +119,7 @@ def update_workers():
         cache["workers"]["redraw"] = True
     if not cache["workers"]["redraw"]:
         return
+    cache["workers"]["redraw"] = False
     cfg["wpad"].clear()
     wlist = cache["workers"]["wlist"]
     wi = 0
@@ -127,16 +134,20 @@ def update_workers():
         wi += 1
         cfg["workers"]["count"] = wi
         y += 1
+        x = 0
         if cfg["select"] == wi and cfg["tab"] == 0:
             cfg["wpad"].addstr(y, 0, worker, curses.A_BOLD)
         else:
             cfg["wpad"].addstr(y, 0, worker)
+        if len(worker) > cfg["lab"]["WKNAME_LENMAX"]:
+            cfg["lab"]["WKNAME_LENMAX"] = len(worker) + 1
+        x += cfg["lab"]["WKNAME_LENMAX"]
         if wdet["state"] == 'Offline':
-            cfg["wpad"].addstr(y, 20, wdet["state"], curses.color_pair(1))
+            cfg["wpad"].addstr(y, x, wdet["state"], curses.color_pair(1))
         else:
-            cfg["wpad"].addstr(y, 20, wdet["state"])
-        cfg["wpad"].addstr(y, 30, wdet["health"])
-    cache["workers"]["redraw"] = False
+            cfg["wpad"].addstr(y, x, wdet["state"])
+        x += 10
+        cfg["wpad"].addstr(y, x, wdet["health"])
 
 def update_devices():
     now = time.time()
@@ -220,7 +231,11 @@ def update_devices():
         cfg["dpad"].addstr(y, x, device["state"])
         x += 8
         # TODO add color according to worker state
-        cfg["dpad"].addstr(y, x, ddetail["worker"])
+        wkname = ddetail["worker"]
+        if cache["workers"]["detail"][wkname]["wdet"]["state"] == 'Offline':
+            cfg["dpad"].addstr(y, x, wkname, curses.color_pair(1))
+        else:
+            cfg["dpad"].addstr(y, x, wkname)
         x += 10
 
 def update_jobs():
@@ -241,10 +256,7 @@ def update_jobs():
         return
     cfg["jpad"].clear()
     jlist = cache["jobs"]["jlist"]
-    y += 1
-    cfg["jpad"].addstr(y, 0, "Jobs (refresh %d/%d)" % (now - cache["jobs"]["time"], cfg["jobs"]["refresh"]))
     for job in jlist:
-        y += 1
         ji += 1
         cfg["jobs"]["count"] = ji
         jobid = str(job["id"])
@@ -262,6 +274,7 @@ def update_jobs():
         cfg["jpad"].addstr(y, 17, job["submitter"])
         if "actual_device" in job and job["actual_device"] != None:
             cfg["jpad"].addstr(y, 29, job["actual_device"])
+        y += 1
     cache["jobs"]["redraw"] = False
 
 def check_limits():
@@ -289,6 +302,8 @@ def check_limits():
     if cfg["tab"] == 2:
         if cfg["select"] > cfg["jobs"]["count"]:
             cfg["select"] = cfg["jobs"]["count"]
+        if cfg["select"] > cfg["jobs"]["display"]:
+            cfg["select"] = cfg["jobs"]["display"]
 
 # update the vjpad with content of job vjob
 def update_job(jobid):
@@ -348,6 +363,8 @@ def main(stdscr):
     curses.init_pair(1, curses.COLOR_RED, curses.COLOR_BLACK)
     stdscr.timeout(200)
 
+    spad = None
+
     exit = False
     while not exit:
         now = time.time()
@@ -386,7 +403,10 @@ def main(stdscr):
         # devices
         if cfg["devices"]["enable"]:
             update_devices()
-            y_max = rows - 15
+            if cfg["jobs"]["enable"]:
+                y_max = rows - 15
+            else:
+                y_max = rows - 1
             cfg["devices"]["display"] = y_max - y
             if cfg["devices"]["display"] > cfg["devices"]["count"]:
                 cfg["devices"]["display"] = cfg["devices"]["count"]
@@ -402,11 +422,13 @@ def main(stdscr):
             #verify that select is printable
             check_limits()
             cfg["dpad"].refresh(cfg["devices"]["offset"], 0, y, 0, y_max, cols - 1)
-            y += cfg["devices"]["display"]
+            y += cfg["devices"]["display"] + 1
 
         if cfg["jobs"]["enable"]:
             update_jobs()
-            cfg["jpad"].refresh(0, 0, y, 0, rows - 1, cols - 1)
+            cfg["jobs"]["display"] = rows - y - 1
+            cfg["jpad"].refresh(0, 0, y + 1, 0, rows - 1, cols - 1)
+            stdscr.addstr(y, 0, "Jobs 1-%d/?? (refresh %d/%d)" % (cfg["jobs"]["display"], now - cache["jobs"]["time"], cfg["jobs"]["refresh"]))
 
         if cfg["vjob"] != None:
             update_job(cfg["vjob"])

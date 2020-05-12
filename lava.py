@@ -15,6 +15,7 @@ cfg["workers"]["enable"] = True
 cfg["workers"]["count"] = 0
 cfg["workers"]["redraw"] = False
 cfg["workers"]["refresh"] = 60
+cfg["workers"]["select"] = []
 cfg["devices"] = {}
 cfg["devices"]["enable"] = True
 cfg["devices"]["count"] = 0
@@ -37,7 +38,11 @@ cfg["sjob"] = None
 cfg["wpad"] = None
 cfg["dpad"] = None
 cfg["jpad"] = None
+# selected worker
+cfg["swk"] = None
+# selected device
 cfg["sdev"] = None
+# current lab
 cfg["lab"] = None
 # the status pad
 cfg["spad"] = None
@@ -102,6 +107,8 @@ def switch_lab(usefirst):
             cfg["lab"]["WKNAME_LENMAX"] = 10
         if not "JOB_LENMAX" in lab:
             cfg["lab"]["JOB_LENMAX"] = 5
+        cfg["devices"]["select"] = []
+        cfg["workers"]["select"] = None
         return "Switched to %s" % new["name"]
     return "switch error"
 
@@ -126,6 +133,10 @@ def update_workers():
     cfg["wpad"].clear()
     wlist = cache["workers"]["wlist"]
     wi = 0
+    if cfg["workers"]["select"] == None:
+        cfg["workers"]["select"] = []
+        for worker in wlist:
+            cfg["workers"]["select"].append(worker)
     for worker in wlist:
         if not worker in cache["workers"]["detail"]:
             cache["workers"]["detail"][worker] = {}
@@ -137,11 +148,16 @@ def update_workers():
         wi += 1
         cfg["workers"]["count"] = wi
         y += 1
-        x = 0
-        if cfg["select"] == wi and cfg["tab"] == 0:
-            cfg["wpad"].addstr(y, 0, worker, curses.A_BOLD)
+        x = 4
+        if worker in cfg["workers"]["select"]:
+            cfg["wpad"].addstr(y, 0, "[x]")
         else:
-            cfg["wpad"].addstr(y, 0, worker)
+            cfg["wpad"].addstr(y, 0, "[ ]")
+        if cfg["select"] == wi and cfg["tab"] == 0:
+            cfg["wpad"].addstr(y, x, worker, curses.A_BOLD)
+            cfg["swk"] = worker
+        else:
+            cfg["wpad"].addstr(y, x, worker)
         if len(worker) > cfg["lab"]["WKNAME_LENMAX"]:
             cfg["lab"]["WKNAME_LENMAX"] = len(worker) + 1
             cache["workers"]["redraw"] = True
@@ -206,11 +222,6 @@ def update_devices():
                 nlist.append(device)
         dlist = nlist
     for device in dlist:
-        x = 4
-        y += 1
-        di += 1
-        cfg["devices"]["count"] = di
-        cfg["devices"]["max"] = di
         dname = device["hostname"]
         if dname not in cache["device"]:
             cache["device"][dname] = {}
@@ -220,6 +231,13 @@ def update_devices():
             cache["device"][dname]["time"] = time.time()
         ddetail = cache["device"][dname]
 
+        if ddetail["worker"] not in cfg["workers"]["select"]:
+            continue
+        x = 4
+        y += 1
+        di += 1
+        cfg["devices"]["count"] = di
+        cfg["devices"]["max"] = di
         if dname in cfg["devices"]["select"]:
             cfg["dpad"].addstr(y, 0, "[x]")
         else:
@@ -524,6 +542,12 @@ def main(stdscr):
                 # scroll job output
                 cfg["vjob_off"] += 100
         elif c == ord(" "):
+            if cfg["tab"] == 0:
+                if cfg["swk"] in cfg["workers"]["select"]:
+                    cfg["workers"]["select"].remove(cfg["swk"])
+                else:
+                    cfg["workers"]["select"].append(cfg["swk"])
+                cache["device"]["redraw"] = True
             if cfg["tab"] == 1:
                 if cfg["sdev"] in cfg["devices"]["select"]:
                     cfg["devices"]["select"].remove(cfg["sdev"])

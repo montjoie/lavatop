@@ -144,10 +144,16 @@ def update_workers():
         x += cfg["lab"]["WKNAME_LENMAX"]
         if wdet["state"] == 'Offline':
             cfg["wpad"].addstr(y, x, wdet["state"], curses.color_pair(1))
+        elif wdet["state"] == 'Online':
+            cfg["wpad"].addstr(y, x, wdet["state"], curses.color_pair(2))
         else:
             cfg["wpad"].addstr(y, x, wdet["state"])
         x += 10
-        cfg["wpad"].addstr(y, x, wdet["health"])
+        if wdet["health"] == 'Active':
+            cfg["wpad"].addstr(y, x, wdet["health"], curses.color_pair(2))
+        else:
+            cfg["wpad"].addstr(y, x, wdet["health"], curses.color_pair(1))
+
 
 def update_devices():
     now = time.time()
@@ -225,10 +231,19 @@ def update_devices():
         x += cfg["lab"]["DEVICENAME_LENMAX"] + 1
         if device["health"] == 'Bad':
             cfg["dpad"].addstr(y, x, device["health"], curses.color_pair(1))
+        elif device["health"] == 'Good':
+            cfg["dpad"].addstr(y, x, device["health"], curses.color_pair(2))
+        elif device["health"] == 'Maintenance':
+            cfg["dpad"].addstr(y, x, device["health"], curses.color_pair(3))
         else:
             cfg["dpad"].addstr(y, x, device["health"])
         x += 14
-        cfg["dpad"].addstr(y, x, device["state"])
+        if device["state"] == 'Running':
+            cfg["dpad"].addstr(y, x, device["state"], curses.color_pair(2))
+        elif device["state"] == 'Idle':
+            cfg["dpad"].addstr(y, x, device["state"], curses.color_pair(3))
+        else:
+            cfg["dpad"].addstr(y, x, device["state"])
         x += 8
         # TODO add color according to worker state
         wkname = ddetail["worker"]
@@ -269,6 +284,10 @@ def update_jobs():
             cfg["jpad"].addstr(y, 0, jobid)
         if job["health"] == 'Incomplete':
             cfg["jpad"].addstr(y, 6, job["health"], curses.color_pair(1))
+        elif job["health"] == 'Complete':
+            cfg["jpad"].addstr(y, 6, job["health"], curses.color_pair(2))
+        elif job["health"] == 'Unknown':
+            cfg["jpad"].addstr(y, 6, job["health"], curses.color_pair(3))
         else:
             cfg["jpad"].addstr(y, 6, job["health"])
         cfg["jpad"].addstr(y, 17, job["submitter"])
@@ -361,6 +380,8 @@ def main(stdscr):
     msg = ""
     cmd = 0
     curses.init_pair(1, curses.COLOR_RED, curses.COLOR_BLACK)
+    curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)
+    curses.init_pair(3, curses.COLOR_BLUE, curses.COLOR_BLACK)
     stdscr.timeout(200)
 
     spad = None

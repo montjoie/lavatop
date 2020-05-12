@@ -44,8 +44,8 @@ cfg["swk"] = None
 cfg["sdev"] = None
 # current lab
 cfg["lab"] = None
-# the status pad
-cfg["spad"] = None
+# the status window
+cfg["swin"] = None
 cfg["wjobs"] = None
 
 #second colum start
@@ -413,7 +413,6 @@ def main(stdscr):
     curses.init_pair(3, curses.COLOR_BLUE, curses.COLOR_BLACK)
     stdscr.timeout(200)
 
-    spad = None
 
     exit = False
     while not exit:
@@ -421,15 +420,18 @@ def main(stdscr):
         rows, cols = stdscr.getmaxyx()
         cfg["rows"] = rows
         cfg["cols"] = cols
-        stdscr.addstr(0, 4, str(c))
-        stdscr.addstr(0, 10, "Screen %dx%d Lab: %s Select: %d" % (cols, rows, cfg["lab"]["name"], cfg["select"]))
-        # print help
-        stdscr.addstr(0, rows - 2, "HELP: UP DOWN TAB")
+        if cfg["swin"] == None:
+            cfg["swin"] = curses.newwin(3, cfg["cols"], 0, 0)
+        cfg["swin"].clear()
+        cfg["swin"].addstr(0, 0, "Screen %dx%d Lab: %s Select: %d HELP: UP DOWN TAB [Q]uit" % (cols, rows, cfg["lab"]["name"], cfg["select"]))
+        if cfg["tab"] == 0:
+            cfg["swin"].addstr(1, 0, "WORKERS HELP: UP DOWN space")
         if cfg["tab"] == 1:
-            stdscr.addstr(1, 0, "DEVICE HELP: h+[u]")
+            cfg["swin"].addstr(1, 0, "DEVICES HELP: h+[um] s+[shn] UP DOWN space")
         if cfg["tab"] == 2:
-            stdscr.addstr(1, 0, "JOB HELP: v")
-        stdscr.addstr(2, 0, msg)
+            cfg["swin"].addstr(1, 0, "JOBS HELP: v  PGDN PGUP x")
+        cfg["swin"].addstr(2, 0, msg)
+        cfg["swin"].refresh()
         if cfg["tab"] != 2:
             cfg["sjob"] = None
 
@@ -499,7 +501,7 @@ def main(stdscr):
             wj[cfg["vjob"]]["vjpad"].refresh(cfg["vjob_off"], 0, 9, 9, rows - 9, cols - 9)
         #curses.doupdate()
         y += 1
-        msg = ""
+        #msg = ""
         c = stdscr.getch()
         if c == curses.KEY_UP:
             cfg["select"] -= 1

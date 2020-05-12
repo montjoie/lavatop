@@ -543,6 +543,12 @@ def main(stdscr):
             else:
                 # scroll job output
                 cfg["vjob_off"] += 100
+        elif c == ord("="):
+            if cfg["tab"] == 0:
+                cfg["workers"]["select"] = []
+                cfg["workers"]["select"].append(cfg["swk"])
+                cache["device"]["redraw"] = True
+                cache["workers"]["redraw"] = True
         elif c == ord(" "):
             if cfg["tab"] == 0:
                 if cfg["swk"] in cfg["workers"]["select"]:

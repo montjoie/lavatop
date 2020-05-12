@@ -25,6 +25,7 @@ cfg["devices"]["offset"] = 0
 # how many device are displayed
 cfg["devices"]["display"] = 0
 cfg["devices"]["select"] = []
+cfg["devices"]["sort"] = 0
 cfg["jobs"] = {}
 cfg["jobs"]["enable"] = True
 cfg["jobs"]["count"] = 0
@@ -155,6 +156,34 @@ def update_devices():
     cfg["dpad"].clear()
     dlist = cache["device"]["dlist"]
     di = 0
+    # sort by health
+    if cfg["devices"]["sort"] == 1:
+        nlist = []
+        for device in dlist:
+            if device["health"] == 'Bad':
+                nlist.append(device)
+        for device in dlist:
+            if device["health"] == 'Unknown':
+                nlist.append(device)
+        for device in dlist:
+            if device["health"] == 'Good':
+                nlist.append(device)
+        for device in dlist:
+            if device["health"] == 'Maintenance':
+                nlist.append(device)
+        for device in dlist:
+            if device["health"] == 'Retired':
+                nlist.append(device)
+        dlist = nlist
+    if cfg["devices"]["sort"] == 2:
+        nlist = []
+        for device in dlist:
+            if device["state"] == 'Running':
+                nlist.append(device)
+        for device in dlist:
+            if device["state"] == 'Idle':
+                nlist.append(device)
+        dlist = nlist
     for device in dlist:
         x = 4
         y += 1
@@ -455,7 +484,7 @@ def main(stdscr):
                 cache["jobs"]["redraw"] = True
                 cache["workers"]["redraw"] = True
                 msg = "Switched to worker tab"
-        elif cmd > 0:
+        elif cmd > 0 and c > 0:
             # want a subcommand
             if cmd == ord('h'):
                 if c == ord('u'):
@@ -475,6 +504,22 @@ def main(stdscr):
                 if c == ord('n'):
                     cmd = 0
                     msg = switch_lab()
+            elif cmd == ord('s'):
+                if c == ord('n'):
+                    msg = "Sort by name"
+                    cfg["devices"]["sort"] = 0
+                    cache["device"]["redraw"] = True
+                elif c == ord('h'):
+                    msg = "Sort by health"
+                    cfg["devices"]["sort"] = 1
+                    cache["device"]["redraw"] = True
+                elif c == ord('s'):
+                    msg = "Sort by state"
+                    cfg["devices"]["sort"] = 2
+                    cache["device"]["redraw"] = True
+                else:
+                    cmd = 0
+                    msg = "Invalid sort"
             else:
                 cmd = 0
                 msg = "Invalid subcomand %s" % curses.unctrl(c)
@@ -515,6 +560,9 @@ def main(stdscr):
             cache["device"]["time"] = 0
             cache["jobs"]["time"] = 0
             msg = "Refresh all"
+        elif c == ord('s'):
+            cmd = c
+            msg = "Sort by ? (h n s)"
         elif c == ord('v'):
             if cfg["tab"] == 2:
                 msg = "View job %s" % cfg["sjob"]

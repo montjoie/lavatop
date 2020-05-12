@@ -19,7 +19,7 @@ TODO set maintenance
 * h for set health then u for unknow, m for maintenance
 * a select all in view (TODO)
 * A select all (TODO)
-* s sort view (sort s for State, h for Health, n for Name) (TODO)
+* s sort view (sort s for State, h for Health, n for Name)
 ### in jobs tab
 * v view job
 ** TODO rerun

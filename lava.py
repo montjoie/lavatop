@@ -102,6 +102,7 @@ def update_workers():
         cfg["wpad"] = curses.newpad(100, 100)
     if not "workers" in cache:
         cache["workers"] = {}
+        cache["workers"]["detail"] = {}
         cache["workers"]["time"] = 0
     if now - cache["workers"]["time"] > cfg["workers"]["refresh"]:
         cache["workers"]["wlist"] = cfg["lserver"].scheduler.workers.list()
@@ -113,7 +114,13 @@ def update_workers():
     wlist = cache["workers"]["wlist"]
     wi = 0
     for worker in wlist:
-        wdet = cfg["lserver"].scheduler.workers.show(worker)
+        if not worker in cache["workers"]["detail"]:
+            cache["workers"]["detail"][worker] = {}
+            cache["workers"]["detail"][worker]["time"] = 0
+        if now - cache["workers"]["detail"][worker]["time"] > 10:
+            cache["workers"]["detail"][worker]["time"] = time.time()
+            cache["workers"]["detail"][worker]["wdet"] = cfg["lserver"].scheduler.workers.show(worker)
+        wdet = cache["workers"]["detail"][worker]["wdet"]
         wi += 1
         cfg["workers"]["count"] = wi
         y += 1

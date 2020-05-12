@@ -27,5 +27,5 @@ TODO set maintenance
 ```
 labs:
   - name: LAVAlab
-    lavauri: http://admin:adminpass@127.0.0.1/RPC2
+    lavauri: http://admin:token@127.0.0.1/RPC2
 ```

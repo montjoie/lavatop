@@ -41,6 +41,10 @@ cfg["sdev"] = None
 cfg["lab"] = None
 # the status pad
 cfg["spad"] = None
+cfg["wjobs"] = None
+
+#second colum start
+cfg["sc"] = 0
 
 # view job
 cfg["wjob"] = None
@@ -56,23 +60,10 @@ except IOError:
     print("ERROR: Cannot open labs config file")
     sys.exit(1)
 labs = yaml.safe_load(tlabsfile)
-for lab in labs["labs"]:
-    if "disabled" in lab and lab["disabled"]:
-        continue
-    cfg["lab"] = lab
-    break
-if cfg["lab"] == None:
-    sys.exit(1)
-LAVAURI = lab["lavauri"]
-cfg["lserver"] = xmlrpc.client.ServerProxy(LAVAURI, allow_none=True)
-if not "DEVICENAME_LENMAX" in lab:
-    cfg["lab"]["DEVICENAME_LENMAX"] = 24
-if not "WKNAME_LENMAX" in lab:
-    cfg["lab"]["WKNAME_LENMAX"] = 10
 
-def switch_lab():
+def switch_lab(usefirst):
     new = None
-    usenext = False
+    usenext = usefirst
     for lab in labs["labs"]:
         if "disabled" in lab and lab["disabled"]:
             continue
@@ -88,21 +79,33 @@ def switch_lab():
             break
 
     if new != None:
-        if cfg["lab"]["name"] == new["name"]:
+        if cfg["lab"] != None and cfg["lab"]["name"] == new["name"]:
             return "already this lab"
         #real switch
         cfg["lab"] = new
         LAVAURI = new["lavauri"]
         cfg["lserver"] = xmlrpc.client.ServerProxy(LAVAURI, allow_none=True)
-        cache["device"]["time"] = 0
-        cache["workers"]["time"] = 0
-        cache["jobs"]["time"] = 0
+        if "device" in cache:
+            cache["device"]["time"] = 0
+            for dname in cache["device"]:
+                if isinstance(cache["device"][dname], dict):
+                    cache["device"][dname]["time"] = 0
+        if "workers" in cache:
+            cache["workers"]["time"] = 0
+            for worker in cache["workers"]["detail"]:
+                cache["workers"]["detail"][worker]["time"] = 0
+        if "jobs" in cache:
+            cache["jobs"]["time"] = 0
         if not "DEVICENAME_LENMAX" in new:
             cfg["lab"]["DEVICENAME_LENMAX"] = 24
         if not "WKNAME_LENMAX" in new:
             cfg["lab"]["WKNAME_LENMAX"] = 10
+        if not "JOB_LENMAX" in lab:
+            cfg["lab"]["JOB_LENMAX"] = 5
         return "Switched to %s" % new["name"]
     return "switch error"
+
+switch_lab(True)
 
 def update_workers():
     now = time.time()
@@ -141,6 +144,7 @@ def update_workers():
             cfg["wpad"].addstr(y, 0, worker)
         if len(worker) > cfg["lab"]["WKNAME_LENMAX"]:
             cfg["lab"]["WKNAME_LENMAX"] = len(worker) + 1
+            cache["workers"]["redraw"] = True
         x += cfg["lab"]["WKNAME_LENMAX"]
         if wdet["state"] == 'Offline':
             cfg["wpad"].addstr(y, x, wdet["state"], curses.color_pair(1))
@@ -237,7 +241,7 @@ def update_devices():
             cfg["dpad"].addstr(y, x, device["health"], curses.color_pair(3))
         else:
             cfg["dpad"].addstr(y, x, device["health"])
-        x += 14
+        x += 12
         if device["state"] == 'Running':
             cfg["dpad"].addstr(y, x, device["state"], curses.color_pair(2))
         elif device["state"] == 'Idle':
@@ -251,7 +255,9 @@ def update_devices():
             cfg["dpad"].addstr(y, x, wkname, curses.color_pair(1))
         else:
             cfg["dpad"].addstr(y, x, wkname)
-        x += 10
+        x += cfg["lab"]["WKNAME_LENMAX"]
+        if x > cfg["sc"]:
+            cfg["sc"] = x
 
 def update_jobs():
     now = time.time()
@@ -272,24 +278,29 @@ def update_jobs():
     cfg["jpad"].clear()
     jlist = cache["jobs"]["jlist"]
     for job in jlist:
+        x = 0
         ji += 1
         cfg["jobs"]["count"] = ji
         jobid = str(job["id"])
         if jobid is int:
             jobid = str(job["id"])
         if cfg["select"] == ji and cfg["tab"] == 2:
-            cfg["jpad"].addstr(y, 0, jobid, curses.A_BOLD)
+            cfg["jpad"].addstr(y, x, jobid, curses.A_BOLD)
             cfg["sjob"] = jobid
         else:
-            cfg["jpad"].addstr(y, 0, jobid)
+            cfg["jpad"].addstr(y, x, jobid)
+        if len(jobid) > cfg["lab"]["JOB_LENMAX"]:
+            cfg["lab"]["JOB_LENMAX"] = len(jobid) + 1
+        x += cfg["lab"]["JOB_LENMAX"] + 1
         if job["health"] == 'Incomplete':
-            cfg["jpad"].addstr(y, 6, job["health"], curses.color_pair(1))
+            cfg["jpad"].addstr(y, x, job["health"], curses.color_pair(1))
         elif job["health"] == 'Complete':
-            cfg["jpad"].addstr(y, 6, job["health"], curses.color_pair(2))
+            cfg["jpad"].addstr(y, x, job["health"], curses.color_pair(2))
         elif job["health"] == 'Unknown':
-            cfg["jpad"].addstr(y, 6, job["health"], curses.color_pair(3))
+            cfg["jpad"].addstr(y, x, job["health"], curses.color_pair(3))
         else:
-            cfg["jpad"].addstr(y, 6, job["health"])
+            cfg["jpad"].addstr(y, x, job["health"])
+        x += 11
         cfg["jpad"].addstr(y, 17, job["submitter"])
         if "actual_device" in job and job["actual_device"] != None:
             cfg["jpad"].addstr(y, 29, job["actual_device"])
@@ -451,13 +462,21 @@ def main(stdscr):
             cfg["jpad"].refresh(0, 0, y + 1, 0, rows - 1, cols - 1)
             stdscr.addstr(y, 0, "Jobs 1-%d/?? (refresh %d/%d)" % (cfg["jobs"]["display"], now - cache["jobs"]["time"], cfg["jobs"]["refresh"]))
 
+        if cfg["wjobs"] == None:
+            cfg["wjobs"] = curses.newwin(cfg["rows"] - 4, cfg["cols"] - cfg["sc"], 4, cfg["sc"])
+        if cfg["wjobs"] != None:
+            cfg["wjobs"].box("|", "-")
+            cfg["wjobs"].addstr(1, 1, "JOB LIST")
+            cfg["wjobs"].refresh()
+            cfg["jpad"].refresh(0, 0, 4+1, cfg["sc"] + 1, rows - 2, cols - 2)
+
         if cfg["vjob"] != None:
             update_job(cfg["vjob"])
 
         stdscr.refresh()
 
         if cfg["vjob"] != None:
-            wj[cfg["vjob"]]["wjob"].box("=", "-")
+            wj[cfg["vjob"]]["wjob"].box("|", "-")
             wj[cfg["vjob"]]["wjob"].refresh()
             wj[cfg["vjob"]]["vjpad"].refresh(cfg["vjob_off"], 0, 9, 9, rows - 9, cols - 9)
         #curses.doupdate()
@@ -546,7 +565,7 @@ def main(stdscr):
             elif cmd == ord('l'):
                 if c == ord('n'):
                     cmd = 0
-                    msg = switch_lab()
+                    msg = switch_lab(False)
             elif cmd == ord('s'):
                 if c == ord('n'):
                     msg = "Sort by name"

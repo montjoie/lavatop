@@ -92,6 +92,8 @@ def switch_lab():
         cache["device"]["time"] = 0
         cache["workers"]["time"] = 0
         cache["jobs"]["time"] = 0
+        if not "DEVICENAME_LENMAX" in new:
+            cfg["lab"]["DEVICENAME_LENMAX"] = 24
         return "Switched to %s" % new["name"]
     return "switch error"
 
@@ -291,9 +293,9 @@ def update_job(jobid):
             if line['lvl'] == 'results':
                 wj[jobid]["vjpad"].addstr(y, 0, "TEST: %s %s %s" % (line["msg"]["case"], line["msg"]["definition"], line["msg"]["result"]))
                 y += 1
-                    # TODO error_msg
-                    #pad.addstr(y, 0, str(line))
-                    #y += 1
+                if "error_msg" in line["msg"]:
+                    wj[jobid]["vjpad"].addstr(y, 0, line["msg"]["error_msg"])
+                    y += 1
                 continue
             if isinstance(line["msg"], dict):
                 for msg in line["msg"]:
@@ -456,16 +458,18 @@ def main(stdscr):
         elif cmd > 0:
             # want a subcommand
             if cmd == ord('h'):
-                cmd = 0
                 if c == ord('u'):
                     msg = "Set %s to unknow" % cfg["sdev"]
                     cfg["lserver"].scheduler.devices.update(cfg["sdev"], None, None, None, None, 'UNKNOWN')
                     cache["device"]["time"] = 0
+                    cmd = 0
                 elif c == ord('m'):
                     msg = "Set %s to maintenance" % cfg["sdev"]
                     cfg["lserver"].scheduler.devices.update(cfg["sdev"], None, None, None, None, 'MAINTENANCE')
                     cache["device"]["time"] = 0
-                else:
+                    cmd = 0
+                elif c > 0:
+                    cmd = 0
                     msg = "Invalid health %s" % curses.unctrl(c)
             elif cmd == ord('l'):
                 if c == ord('n'):
@@ -489,7 +493,7 @@ def main(stdscr):
         elif c == ord('h'):
             if cfg["tab"] == 1:
                 cmd = c
-                msg = "Set health to"
+                msg = "Set health of %s to " % cfg["sdev"]
             else:
                 msg = "Invalid"
                 cmd = 0

@@ -35,6 +35,7 @@ cfg["jobs"]["refresh"] = 20
 # where = 0 on right of screen, 1 is in classic tab
 cfg["jobs"]["where"] = 0
 cfg["jobs"]["title"] = True
+cfg["jobs"]["offset"] = 0
 cfg["tab"] = 0
 cfg["select"] = 1
 cfg["sjob"] = None
@@ -378,8 +379,12 @@ def check_limits():
     if cfg["tab"] == 2:
         if cfg["select"] > cfg["jobs"]["count"]:
             cfg["select"] = cfg["jobs"]["count"]
-        if cfg["select"] > cfg["jobs"]["display"]:
-            cfg["select"] = cfg["jobs"]["display"]
+        if cfg["select"] <= cfg["jobs"]["offset"] and cfg["jobs"]["offset"] > 0:
+            cfg["jobs"]["offset"] -= 1
+            cache["jobs"]["redraw"] = True
+        if cfg["select"] > cfg["jobs"]["offset"] + cfg["jobs"]["display"]:
+            cfg["jobs"]["offset"] += 1
+            cache["jobs"]["redraw"] = True
 
 # update the vjpad with content of job vjob
 def update_job(jobid):
@@ -535,18 +540,32 @@ def main(stdscr):
             update_jobs()
             if cfg["jobs"]["where"] == 1:
                 cfg["jobs"]["display"] = rows - y - 1
-                cfg["jpad"].noutrefresh(0, 0, y + 1, 0, rows - 1, cols - 1)
-                stdscr.addstr(y, 0, "Jobs 1-%d/?? (refresh %d/%d)" % (cfg["jobs"]["display"], now - cache["jobs"]["time"], cfg["jobs"]["refresh"]))
+                if cfg["jobs"]["title"]:
+                    cfg["jobs"]["display"] = cfg["jobs"]["display"] / 2
+                cfg["jpad"].noutrefresh(cfg["jobs"]["offset"], 0, y + 1, 0, rows - 1, cols - 1)
+                stdscr.addstr(y, 0, "Jobs %d-%d/%d (refresh %d/%d)" % (
+                cfg["jobs"]["offset"] + 1,
+                cfg["jobs"]["display"] + cfg["jobs"]["offset"],
+                cfg["jobs"]["count"],
+                now - cache["jobs"]["time"],
+                cfg["jobs"]["refresh"]))
             else:
-                cfg["jobs"]["display"] = cfg["rows"] - 6
+                cfg["jobs"]["display"] = cfg["rows"] - 7
+                if cfg["jobs"]["title"]:
+                    cfg["jobs"]["display"] = cfg["jobs"]["display"] / 2
 
         if cfg["wjobs"] == None and cfg["jobs"]["where"] == 0:
             cfg["wjobs"] = curses.newwin(cfg["rows"] - 4, cfg["cols"] - cfg["sc"], 4, cfg["sc"])
         if cfg["wjobs"] != None:
             cfg["wjobs"].box("|", "-")
-            cfg["wjobs"].addstr(1, 1, "JOB LIST")
+            cfg["wjobs"].addstr(1, 1, "Jobs %d-%d/%d (refresh %d/%d)" % (
+                cfg["jobs"]["offset"] + 1,
+                cfg["jobs"]["display"] + cfg["jobs"]["offset"],
+                cfg["jobs"]["count"],
+                now - cache["jobs"]["time"],
+                cfg["jobs"]["refresh"]))
             cfg["wjobs"].noutrefresh()
-            cfg["jpad"].noutrefresh(0, 0, 4+1, cfg["sc"] + 1, rows - 2, cols - 2)
+            cfg["jpad"].noutrefresh(cfg["jobs"]["offset"], 0, 4+2, cfg["sc"] + 1, rows - 2, cols - 2)
 
         if cfg["vjob"] != None:
             update_job(cfg["vjob"])
@@ -591,8 +610,17 @@ def main(stdscr):
                 cache["device"]["redraw"] = True
                 if cfg["devices"]["offset"] < 0:
                     cfg["devices"]["offset"] = 0
+                # the select could has been hidden
                 if cfg["select"] > cfg["devices"]["offset"] + cfg["devices"]["display"]:
                     cfg["select"] = cfg["devices"]["offset"] + cfg["devices"]["display"]
+            elif cfg["tab"] == 2:
+                cfg["jobs"]["offset"] -= 5
+                cache["jobs"]["redraw"] = True
+                if cfg["jobs"]["offset"] < 0:
+                    cfg["jobs"]["offset"] = 0
+                # the select could has been hidden
+                if cfg["select"] > cfg["jobs"]["offset"] + cfg["jobs"]["display"]:
+                    cfg["select"] = cfg["jobs"]["offset"] + cfg["jobs"]["display"]
             else:
                 # scroll job output
                 cfg["vjob_off"] -= 100
@@ -606,6 +634,15 @@ def main(stdscr):
                 # the select could has been hidden
                 if cfg["select"] < cfg["devices"]["offset"]:
                     cfg["select"] = cfg["devices"]["offset"]
+            elif cfg["tab"] == 2:
+                #scroll jobs
+                cfg["jobs"]["offset"] += 5
+                cache["jobs"]["redraw"] = True
+                if cfg["jobs"]["offset"] > cfg["jobs"]["count"] - cfg["jobs"]["display"]:
+                    cfg["jobs"]["offset"] = cfg["jobs"]["count"] - cfg["jobs"]["display"]
+                # the select could has been hidden
+                if cfg["select"] < cfg["jobs"]["offset"]:
+                    cfg["select"] = cfg["jobs"]["offset"]
             else:
                 # scroll job output
                 cfg["vjob_off"] += 100

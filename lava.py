@@ -137,7 +137,7 @@ def update_workers():
     if not cache["workers"]["redraw"]:
         return
     cache["workers"]["redraw"] = False
-    cfg["wpad"].clear()
+    cfg["wpad"].erase()
     wlist = cache["workers"]["wlist"]
     wi = 0
     if cfg["workers"]["select"] == None:
@@ -197,7 +197,7 @@ def update_devices():
     if not cache["device"]["redraw"]:
         return
     cache["device"]["redraw"] = False
-    cfg["dpad"].clear()
+    cfg["dpad"].erase()
     dlist = cache["device"]["dlist"]
     di = 0
     # sort by health
@@ -303,7 +303,7 @@ def update_jobs():
     if not cache["jobs"]["redraw"]:
         return
     cache["jobs"]["redraw"] = False
-    cfg["jpad"].clear()
+    cfg["jpad"].erase()
     jlist = cache["jobs"]["jlist"]
     for job in jlist:
         x = 0
@@ -457,7 +457,7 @@ def main(stdscr):
         cfg["cols"] = cols
         if cfg["swin"] == None:
             cfg["swin"] = curses.newwin(3, cfg["cols"], 0, 0)
-        cfg["swin"].clear()
+        cfg["swin"].erase()
         cfg["swin"].addstr(0, 0, "Screen %dx%d Lab: %s Select: %d HELP: UP DOWN TAB [Q]uit" % (cols, rows, cfg["lab"]["name"], cfg["select"]))
         if cfg["tab"] == 0:
             cfg["swin"].addstr(1, 0, "WORKERS HELP: UP DOWN space")

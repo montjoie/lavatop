@@ -12,9 +12,11 @@ In all tab:
 * x close window (for job window) or cancel current command
 * ESC to quit
 * space: toggle selection
+* O for global option windows
 
 ### in workers tab
-TODO set maintenance
+* TODO set maintenance
+* = select only the highlighted worker
 ### in device tab
 * h for set health then u for unknow, m for maintenance
 * a select all in view (TODO)

@@ -32,6 +32,8 @@ cfg["jobs"]["enable"] = True
 cfg["jobs"]["count"] = 0
 cfg["jobs"]["redraw"] = False
 cfg["jobs"]["refresh"] = 20
+# where = 0 on right of screen, 1 is in classic tab
+cfg["jobs"]["where"] = 0
 cfg["tab"] = 0
 cfg["select"] = 1
 cfg["sjob"] = None
@@ -47,6 +49,9 @@ cfg["lab"] = None
 # the status window
 cfg["swin"] = None
 cfg["wjobs"] = None
+
+# global options
+cfg["wopt"] = None
 
 #second colum start
 cfg["sc"] = 0
@@ -406,6 +411,25 @@ def update_job(jobid):
                 y += 1
         wj[jobid]["wjob"].addstr(1, 1, "JOBID: %s LINES: %d" % (jobid, y))
 
+def global_options():
+    cfg["wopt"].box("|", "-")
+    if cfg["workers"]["enable"]:
+        cfg["wopt"].addstr(2, 2, "[x] show workers tab")
+    else:
+        cfg["wopt"].addstr(2, 2, "[ ] show workers tab")
+    if cfg["devices"]["enable"]:
+        cfg["wopt"].addstr(3, 2, "[x] show devices tab")
+    else:
+        cfg["wopt"].addstr(3, 2, "[ ] show devices tab")
+    if cfg["jobs"]["enable"]:
+        cfg["wopt"].addstr(4, 2, "[x] show jobs tab")
+    else:
+        cfg["wopt"].addstr(4, 2, "[ ] show jobs tab")
+    if cfg["jobs"]["where"] == 1:
+        cfg["wopt"].addstr(5, 2, "[ ] display jobs on the right")
+    else:
+        cfg["wopt"].addstr(5, 2, "[x] display jobs on the right")
+
 def main(stdscr):
     # Clear screen
     c = 0
@@ -416,7 +440,7 @@ def main(stdscr):
     curses.init_pair(1, curses.COLOR_RED, curses.COLOR_BLACK)
     curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)
     curses.init_pair(3, curses.COLOR_BLUE, curses.COLOR_BLACK)
-    stdscr.timeout(200)
+    stdscr.timeout(500)
 
 
     exit = False
@@ -460,7 +484,7 @@ def main(stdscr):
         # devices
         if cfg["devices"]["enable"]:
             update_devices()
-            if cfg["jobs"]["enable"]:
+            if cfg["jobs"]["enable"] and cfg["jobs"]["where"] == 1:
                 y_max = rows - 15
             else:
                 y_max = rows - 1
@@ -481,13 +505,20 @@ def main(stdscr):
             cfg["dpad"].refresh(cfg["devices"]["offset"], 0, y, 0, y_max, cols - 1)
             y += cfg["devices"]["display"] + 1
 
+        if cfg["sc"] > cfg["cols"] - 30:
+            # too small, cannot print jobs on right
+            cfg["jobs"]["where"] = 1
+            msg = "TOO SMALL %d %d %d" % (cfg["sc"], cfg["cols"], cfg["cols"] - 30)
         if cfg["jobs"]["enable"]:
             update_jobs()
-            cfg["jobs"]["display"] = rows - y - 1
-            cfg["jpad"].refresh(0, 0, y + 1, 0, rows - 1, cols - 1)
-            stdscr.addstr(y, 0, "Jobs 1-%d/?? (refresh %d/%d)" % (cfg["jobs"]["display"], now - cache["jobs"]["time"], cfg["jobs"]["refresh"]))
+            if cfg["jobs"]["where"] == 1:
+                cfg["jobs"]["display"] = rows - y - 1
+                cfg["jpad"].refresh(0, 0, y + 1, 0, rows - 1, cols - 1)
+                stdscr.addstr(y, 0, "Jobs 1-%d/?? (refresh %d/%d)" % (cfg["jobs"]["display"], now - cache["jobs"]["time"], cfg["jobs"]["refresh"]))
+            else:
+                cfg["jobs"]["display"] = cfg["rows"] - 6
 
-        if cfg["wjobs"] == None and cfg["sc"] < cfg["cols"] - 30:
+        if cfg["wjobs"] == None and cfg["jobs"]["where"] == 0:
             cfg["wjobs"] = curses.newwin(cfg["rows"] - 4, cfg["cols"] - cfg["sc"], 4, cfg["sc"])
         if cfg["wjobs"] != None:
             cfg["wjobs"].box("|", "-")
@@ -504,6 +535,11 @@ def main(stdscr):
             wj[cfg["vjob"]]["wjob"].box("|", "-")
             wj[cfg["vjob"]]["wjob"].refresh()
             wj[cfg["vjob"]]["vjpad"].refresh(cfg["vjob_off"], 0, 9, 9, rows - 9, cols - 9)
+
+        if cfg["wopt"] != None:
+            global_options()
+            cfg["wopt"].refresh()
+
         #curses.doupdate()
         y += 1
         #msg = ""
@@ -626,11 +662,18 @@ def main(stdscr):
         elif c == ord('w'):
             # worker window
             cfg["workers"]["enable"] = not cfg["workers"]["enable"]
+            if not cfg["workers"]["enable"] and cfg["tab"] == 0:
+                cfg["tab"] = 1
             msg = "Windows worker"
         elif c == ord('j'):
             # jobs window
             cfg["jobs"]["enable"] = not cfg["jobs"]["enable"]
             msg = "Windows jobs"
+        elif c == ord('O'):
+            if cfg["wopt"] == None:
+                cfg["wopt"] = curses.newwin(cfg["rows"] - 8, cfg["cols"] - 8, 4, 4)
+            else:
+                cfg["wopt"] = None
         elif c == ord('l'):
             # lab switch
             cmd = c
@@ -677,7 +720,10 @@ def main(stdscr):
         if cfg["tab"] == 0 and not cfg["workers"]["enable"]:
             cfg["tab"] = 1
         if c == 27 or c == ord('q'):
-            exit = True
+            if cfg["wopt"] != None:
+                cfg["wopt"] = None
+            else:
+                exit = True
         check_limits()
 
 wrapper(main)

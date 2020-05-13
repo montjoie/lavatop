@@ -245,7 +245,6 @@ def update_devices():
         y += 1
         di += 1
         cfg["devices"]["count"] = di
-        cfg["devices"]["max"] = di
         if dname in cfg["devices"]["select"]:
             cfg["dpad"].addstr(y, 0, "[x]")
         else:
@@ -364,11 +363,11 @@ def check_limits():
     # verify limits for devices
     if cfg["tab"] == 1:
         # check offset
-        if cfg["devices"]["offset"] > cfg["devices"]["max"] - cfg["devices"]["display"]:
-            cfg["devices"]["offset"] = cfg["devices"]["max"] - cfg["devices"]["display"]
+        if cfg["devices"]["offset"] > cfg["devices"]["count"] - cfg["devices"]["display"]:
+            cfg["devices"]["offset"] = cfg["devices"]["count"] - cfg["devices"]["display"]
         # check select
-        if cfg["select"] > cfg["devices"]["max"]:
-            cfg["select"] = cfg["devices"]["max"]
+        if cfg["select"] > cfg["devices"]["count"]:
+            cfg["select"] = cfg["devices"]["count"]
         if cfg["select"] <= cfg["devices"]["offset"] and cfg["devices"]["offset"] > 0:
             cfg["devices"]["offset"] -= 1
             cache["device"]["redraw"] = True
@@ -518,7 +517,7 @@ def main(stdscr):
                 (
                 cfg["devices"]["offset"] + 1,
                 cfg["devices"]["display"] + cfg["devices"]["offset"],
-                cfg["devices"]["max"],
+                cfg["devices"]["count"],
                 now - cache["device"]["time"],
                 cfg["devices"]["refresh"]
                 ))
@@ -602,8 +601,9 @@ def main(stdscr):
                 #scroll devices
                 cfg["devices"]["offset"] += 5
                 cache["device"]["redraw"] = True
-                if cfg["devices"]["offset"] > cfg["devices"]["max"] - 20:
-                    cfg["devices"]["offset"] = 0
+                if cfg["devices"]["offset"] > cfg["devices"]["count"] - cfg["devices"]["display"]:
+                    cfg["devices"]["offset"] = cfg["devices"]["count"] - cfg["devices"]["display"]
+                # the select could has been hidden
                 if cfg["select"] < cfg["devices"]["offset"]:
                     cfg["select"] = cfg["devices"]["offset"]
             else:

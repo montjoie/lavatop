@@ -483,7 +483,7 @@ def main(stdscr):
         if cfg["tab"] == 2:
             cfg["swin"].addstr(1, 0, "JOBS HELP: v  PGDN PGUP x")
         cfg["swin"].addstr(2, 0, msg)
-        cfg["swin"].refresh()
+        cfg["swin"].noutrefresh()
         if cfg["tab"] != 2:
             cfg["sjob"] = None
 
@@ -501,7 +501,7 @@ def main(stdscr):
                 cfg["workers"]["refresh"]
                 ))
             y += 1
-            cfg["wpad"].refresh(0, 0, y, 0, rows - 1, cols - 1)
+            cfg["wpad"].noutrefresh(0, 0, y, 0, rows - 1, cols - 1)
             y += cfg["workers"]["count"] + 1
 
         # devices
@@ -525,7 +525,7 @@ def main(stdscr):
             y += 1
             #verify that select is printable
             check_limits()
-            cfg["dpad"].refresh(cfg["devices"]["offset"], 0, y, 0, y_max, cols - 1)
+            cfg["dpad"].noutrefresh(cfg["devices"]["offset"], 0, y, 0, y_max, cols - 1)
             y += cfg["devices"]["display"] + 1
 
         if cfg["sc"] > cfg["cols"] - 30:
@@ -536,7 +536,7 @@ def main(stdscr):
             update_jobs()
             if cfg["jobs"]["where"] == 1:
                 cfg["jobs"]["display"] = rows - y - 1
-                cfg["jpad"].refresh(0, 0, y + 1, 0, rows - 1, cols - 1)
+                cfg["jpad"].noutrefresh(0, 0, y + 1, 0, rows - 1, cols - 1)
                 stdscr.addstr(y, 0, "Jobs 1-%d/?? (refresh %d/%d)" % (cfg["jobs"]["display"], now - cache["jobs"]["time"], cfg["jobs"]["refresh"]))
             else:
                 cfg["jobs"]["display"] = cfg["rows"] - 6
@@ -546,8 +546,8 @@ def main(stdscr):
         if cfg["wjobs"] != None:
             cfg["wjobs"].box("|", "-")
             cfg["wjobs"].addstr(1, 1, "JOB LIST")
-            cfg["wjobs"].refresh()
-            cfg["jpad"].refresh(0, 0, 4+1, cfg["sc"] + 1, rows - 2, cols - 2)
+            cfg["wjobs"].noutrefresh()
+            cfg["jpad"].noutrefresh(0, 0, 4+1, cfg["sc"] + 1, rows - 2, cols - 2)
 
         if cfg["vjob"] != None:
             update_job(cfg["vjob"])
@@ -556,12 +556,12 @@ def main(stdscr):
 
         if cfg["vjob"] != None:
             wj[cfg["vjob"]]["wjob"].box("|", "-")
-            wj[cfg["vjob"]]["wjob"].refresh()
-            wj[cfg["vjob"]]["vjpad"].refresh(cfg["vjob_off"], 0, 9, 9, rows - 9, cols - 9)
+            wj[cfg["vjob"]]["wjob"].noutrefresh()
+            wj[cfg["vjob"]]["vjpad"].noutrefresh(cfg["vjob_off"], 0, 9, 9, rows - 9, cols - 9)
 
         if cfg["wopt"] != None:
             global_options()
-            cfg["wopt"].refresh()
+            cfg["wopt"].noutrefresh()
 
         curses.doupdate()
 

@@ -35,6 +35,7 @@ cfg["jobs"]["refresh"] = 20
 # where = 0 on right of screen, 1 is in classic tab
 cfg["jobs"]["where"] = 0
 cfg["jobs"]["title"] = True
+cfg["jobs"]["titletrunc"] = True
 cfg["jobs"]["offset"] = 0
 cfg["tab"] = 0
 cfg["select"] = 1
@@ -349,8 +350,16 @@ def update_jobs():
             cfg["jpad"].addstr(y, x, job["device_type"])
         x += cfg["lab"]["DEVICENAME_LENMAX"]
         if cfg["jobs"]["title"]:
-            cfg["jpad"].addstr(y, x, job["description"])
-            y += 2
+            if cfg["jobs"]["titletrunc"]:
+                if cfg["jobs"]["where"] == 0:
+                    spaces = cfg["cols"] - cfg["sc"] - x
+                else:
+                    spaces = cfg["cols"] - x
+                cfg["jpad"].addstr(y, x, job["description"][:spaces])
+                y += 1
+            else:
+                cfg["jpad"].addstr(y, x, job["description"])
+                y += 2
         else:
             y += 1
 
@@ -456,6 +465,10 @@ def global_options():
         cfg["wopt"].addstr(6, 2, "[x] display job [t]itle")
     else:
         cfg["wopt"].addstr(6, 2, "[ ] display job [t]itle")
+    if cfg["jobs"]["titletrunc"]:
+        cfg["wopt"].addstr(7, 2, "[x] [T]runcate job title")
+    else:
+        cfg["wopt"].addstr(7, 2, "[ ] [T]runcate job title")
 
 def main(stdscr):
     # Clear screen
@@ -540,7 +553,7 @@ def main(stdscr):
             update_jobs()
             if cfg["jobs"]["where"] == 1:
                 cfg["jobs"]["display"] = rows - y - 1
-                if cfg["jobs"]["title"]:
+                if cfg["jobs"]["title"] and not cfg["jobs"]["titletrunc"]:
                     cfg["jobs"]["display"] = cfg["jobs"]["display"] / 2
                 cfg["jpad"].noutrefresh(cfg["jobs"]["offset"], 0, y + 1, 0, rows - 1, cols - 1)
                 stdscr.addstr(y, 0, "Jobs %d-%d/%d (refresh %d/%d)" % (
@@ -551,7 +564,7 @@ def main(stdscr):
                 cfg["jobs"]["refresh"]))
             else:
                 cfg["jobs"]["display"] = cfg["rows"] - 7
-                if cfg["jobs"]["title"]:
+                if cfg["jobs"]["title"] and not cfg["jobs"]["titletrunc"]:
                     cfg["jobs"]["display"] = cfg["jobs"]["display"] / 2
 
         if cfg["wjobs"] == None and cfg["jobs"]["where"] == 0:
@@ -771,6 +784,9 @@ def main(stdscr):
             msg = "Refresh all"
         elif c == ord('t'):
             cfg["jobs"]["title"] = not cfg["jobs"]["title"]
+            cfg["jobs"]["refresh"] = True
+        elif c == ord('T'):
+            cfg["jobs"]["titletrunc"] = not cfg["jobs"]["titletrunc"]
             cfg["jobs"]["refresh"] = True
         elif c == ord('s'):
             cmd = c

@@ -112,6 +112,8 @@ def switch_lab(usefirst):
             cfg["lab"]["WKNAME_LENMAX"] = 10
         if not "JOB_LENMAX" in lab:
             cfg["lab"]["JOB_LENMAX"] = 5
+        if not "USER_LENMAX" in lab:
+            cfg["lab"]["USER_LENMAX"] = 10
         cfg["devices"]["select"] = []
         cfg["workers"]["select"] = None
         return "Switched to %s" % new["name"]
@@ -300,6 +302,7 @@ def update_jobs():
         cache["jobs"]["redraw"] = True
     if not cache["jobs"]["redraw"]:
         return
+    cache["jobs"]["redraw"] = False
     cfg["jpad"].clear()
     jlist = cache["jobs"]["jlist"]
     for job in jlist:
@@ -326,14 +329,17 @@ def update_jobs():
         else:
             cfg["jpad"].addstr(y, x, job["health"])
         x += 11
-        cfg["jpad"].addstr(y, 17, job["submitter"])
+        cfg["jpad"].addstr(y, x, job["submitter"])
+        if len(job["submitter"]) > cfg["lab"]["USER_LENMAX"]:
+            cfg["lab"]["USER_LENMAX"] = len(job["submitter"])
+            cache["jobs"]["redraw"] = True
+        x += cfg["lab"]["USER_LENMAX"] + 1
         if "actual_device" in job and job["actual_device"] != None:
             if cfg["tab"] == 1 and cfg["sdev"] != None and job["actual_device"] in cfg["sdev"]:
-                cfg["jpad"].addstr(y, 29, job["actual_device"], curses.A_BOLD)
+                cfg["jpad"].addstr(y, x, job["actual_device"], curses.A_BOLD)
             else:
-                cfg["jpad"].addstr(y, 29, job["actual_device"])
+                cfg["jpad"].addstr(y, x, job["actual_device"])
         y += 1
-    cache["jobs"]["redraw"] = False
 
 def check_limits():
     if cfg["select"] < 1:

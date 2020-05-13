@@ -34,6 +34,7 @@ cfg["jobs"]["redraw"] = False
 cfg["jobs"]["refresh"] = 20
 # where = 0 on right of screen, 1 is in classic tab
 cfg["jobs"]["where"] = 0
+cfg["jobs"]["title"] = True
 cfg["tab"] = 0
 cfg["select"] = 1
 cfg["sjob"] = None
@@ -290,7 +291,11 @@ def update_jobs():
     now = time.time()
     y = 0
     if cfg["jpad"] == None:
-        cfg["jpad"] = curses.newpad(110, 100)
+        if cfg["jobs"]["where"] == 1:
+            w = 110
+        else:
+            w = cfg["cols"] - cfg["sc"] - 2
+        cfg["jpad"] = curses.newpad(210, w)
     ji = 0
     offset = 0
     if "jobs" not in cache:
@@ -339,7 +344,15 @@ def update_jobs():
                 cfg["jpad"].addstr(y, x, job["actual_device"], curses.A_BOLD)
             else:
                 cfg["jpad"].addstr(y, x, job["actual_device"])
-        y += 1
+        else:
+            # print the device type instead
+            cfg["jpad"].addstr(y, x, job["device_type"])
+        x += cfg["lab"]["DEVICENAME_LENMAX"]
+        if cfg["jobs"]["title"]:
+            cfg["jpad"].addstr(y, x, job["description"])
+            y += 2
+        else:
+            y += 1
 
 def check_limits():
     if cfg["select"] < 1:
@@ -420,13 +433,13 @@ def update_job(jobid):
 def global_options():
     cfg["wopt"].box("|", "-")
     if cfg["workers"]["enable"]:
-        cfg["wopt"].addstr(2, 2, "[x] show workers tab")
+        cfg["wopt"].addstr(2, 2, "[x] show [w]orkers tab")
     else:
-        cfg["wopt"].addstr(2, 2, "[ ] show workers tab")
+        cfg["wopt"].addstr(2, 2, "[ ] show [w]orkers tab")
     if cfg["devices"]["enable"]:
-        cfg["wopt"].addstr(3, 2, "[x] show devices tab")
+        cfg["wopt"].addstr(3, 2, "[x] show [d]evices tab")
     else:
-        cfg["wopt"].addstr(3, 2, "[ ] show devices tab")
+        cfg["wopt"].addstr(3, 2, "[ ] show [d]evices tab")
     if cfg["jobs"]["enable"]:
         cfg["wopt"].addstr(4, 2, "[x] show jobs tab")
     else:
@@ -435,6 +448,10 @@ def global_options():
         cfg["wopt"].addstr(5, 2, "[ ] display jobs on the right")
     else:
         cfg["wopt"].addstr(5, 2, "[x] display jobs on the right")
+    if cfg["jobs"]["title"]:
+        cfg["wopt"].addstr(6, 2, "[x] display job [t]itle")
+    else:
+        cfg["wopt"].addstr(6, 2, "[ ] display job [t]itle")
 
 def main(stdscr):
     # Clear screen
@@ -535,7 +552,7 @@ def main(stdscr):
         if cfg["vjob"] != None:
             update_job(cfg["vjob"])
 
-        stdscr.refresh()
+        stdscr.noutrefresh()
 
         if cfg["vjob"] != None:
             wj[cfg["vjob"]]["wjob"].box("|", "-")
@@ -545,6 +562,8 @@ def main(stdscr):
         if cfg["wopt"] != None:
             global_options()
             cfg["wopt"].refresh()
+
+        curses.doupdate()
 
         #curses.doupdate()
         y += 1
@@ -675,7 +694,7 @@ def main(stdscr):
             # jobs window
             cfg["jobs"]["enable"] = not cfg["jobs"]["enable"]
             msg = "Windows jobs"
-        elif c == ord('O'):
+        elif c == ord('O') or c == ord('o'):
             if cfg["wopt"] == None:
                 cfg["wopt"] = curses.newwin(cfg["rows"] - 8, cfg["cols"] - 8, 4, 4)
             else:
@@ -692,10 +711,14 @@ def main(stdscr):
                 msg = "Invalid"
                 cmd = 0
         elif c == ord('x'):
-            cmd = 0
-            cfg["vjob"] = None
-            if cfg["vjpad"] != None:
-                cfg["vjpad"].clear()
+            # close
+            if cfg["wopt"] != None:
+                cfg["wopt"] = None
+            else:
+                cmd = 0
+                cfg["vjob"] = None
+                if cfg["vjpad"] != None:
+                    cfg["vjpad"].erase()
         elif c == ord('r'):
             if cfg["tab"] == 0:
                 cache["workers"]["time"] = 0
@@ -709,6 +732,9 @@ def main(stdscr):
             cache["device"]["time"] = 0
             cache["jobs"]["time"] = 0
             msg = "Refresh all"
+        elif c == ord('t'):
+            cfg["jobs"]["title"] = not cfg["jobs"]["title"]
+            cfg["jobs"]["refresh"] = True
         elif c == ord('s'):
             cmd = c
             msg = "Sort by ? (h n s)"

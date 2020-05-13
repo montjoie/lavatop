@@ -271,6 +271,8 @@ def update_devices():
         wkname = ddetail["worker"]
         if cache["workers"]["detail"][wkname]["wdet"]["state"] == 'Offline':
             cfg["dpad"].addstr(y, x, wkname, curses.color_pair(1))
+        elif cfg["tab"] == 0 and cfg["swk"] != None and wkname in cfg["swk"]:
+            cfg["dpad"].addstr(y, x, wkname, curses.A_BOLD)
         else:
             cfg["dpad"].addstr(y, x, wkname)
         x += cfg["lab"]["WKNAME_LENMAX"]
@@ -321,7 +323,10 @@ def update_jobs():
         x += 11
         cfg["jpad"].addstr(y, 17, job["submitter"])
         if "actual_device" in job and job["actual_device"] != None:
-            cfg["jpad"].addstr(y, 29, job["actual_device"])
+            if cfg["tab"] == 1 and cfg["sdev"] != None and job["actual_device"] in cfg["sdev"]:
+                cfg["jpad"].addstr(y, 29, job["actual_device"], curses.A_BOLD)
+            else:
+                cfg["jpad"].addstr(y, 29, job["actual_device"])
         y += 1
     cache["jobs"]["redraw"] = False
 

@@ -418,7 +418,7 @@ def update_job(jobid):
     if not jobid in wj:
         wj[jobid] = {}
         wj[jobid]["wjob"] = curses.newwin(cfg["rows"] - 8, cfg["cols"] - 8, 4, 4)
-        wj[jobid]["vjpad"] = curses.newpad(JOB_MAX_LINE, 5000)
+        wj[jobid]["vjpad"] = curses.newpad(JOB_MAX_LINE, 500)
         r = cfg["lserver"].scheduler.job_output(jobid)
         logs = yaml.unsafe_load(r.data)
         y = 2

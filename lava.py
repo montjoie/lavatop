@@ -6,8 +6,6 @@ import xmlrpc.client
 import time
 import yaml
 
-JOB_MAX_LINE = 20000
-
 cache = {}
 cfg = {}
 cfg["workers"] = {}
@@ -72,12 +70,21 @@ cfg["vjob_off"] = 0
 # indexed by jobid
 wj = {}
 
+cfg["debug"] = None
+cfg["debug"] = open("debug.log", 'w')
+
 try:
     tlabsfile = open("labs.yaml")
 except IOError:
     print("ERROR: Cannot open labs config file")
     sys.exit(1)
 labs = yaml.safe_load(tlabsfile)
+
+def debug(msg):
+    if cfg["debug"] == None:
+        return
+    cfg["debug"].write(msg)
+    cfg["debug"].flush()
 
 def switch_lab(usefirst):
     new = None
@@ -124,6 +131,7 @@ def switch_lab(usefirst):
             cfg["lab"]["USER_LENMAX"] = 10
         cfg["devices"]["select"] = []
         cfg["workers"]["select"] = None
+        debug("Switched to %s\n" % new["name"])
         return "Switched to %s" % new["name"]
     return "switch error"
 
@@ -143,9 +151,12 @@ def update_workers():
     wmax = len(cache["workers"]["wlist"])
     # if the number of worker changed, recreate window
     if "count" in cfg["workers"] and cfg["workers"]["count"] < wmax:
-        cfg["wpad"] = None
+        if cfg["wpad"] != None:
+            cfg["wpad"].clear()
+            cfg["wpad"].noutrefresh(0, 0, 4, 0, cfg["rows"] - 1, cfg["cols"] - 1)
+            cfg["wpad"] = None
     if cfg["wpad"] == None:
-        cfg["wpad"] = curses.newpad(wmax, 100)
+        cfg["wpad"] = curses.newpad(wmax + 1, 100)
         cache["workers"]["redraw"] = True
     if not cache["workers"]["redraw"]:
         return
@@ -180,6 +191,7 @@ def update_workers():
             cfg["wpad"].addstr(y, x, worker)
         if len(worker) > cfg["lab"]["WKNAME_LENMAX"]:
             cfg["lab"]["WKNAME_LENMAX"] = len(worker) + 1
+            debug("WKNAME_LENMAX set to %d\n" % cfg["lab"]["WKNAME_LENMAX"])
             cache["workers"]["redraw"] = True
         x += cfg["lab"]["WKNAME_LENMAX"]
         if wdet["state"] == 'Offline':
@@ -303,9 +315,10 @@ def update_jobs():
     y = 0
     if cfg["jpad"] == None:
         if cfg["jobs"]["where"] == 1:
-            w = 110
+            w = cfg["cols"] - 2
         else:
             w = cfg["cols"] - cfg["sc"] - 2
+        debug("Create jobpad w=%d\n" % w)
         cfg["jpad"] = curses.newpad(210, w)
     ji = 0
     offset = 0
@@ -417,15 +430,44 @@ def update_job(jobid):
         return
     if not jobid in wj:
         wj[jobid] = {}
+        debug("Create job window %dx%d for %s\n" % (cfg["rows"] - 8, cfg["cols"] - 8, jobid))
         wj[jobid]["wjob"] = curses.newwin(cfg["rows"] - 8, cfg["cols"] - 8, 4, 4)
-        wj[jobid]["vjpad"] = curses.newpad(JOB_MAX_LINE, 500)
         r = cfg["lserver"].scheduler.job_output(jobid)
         logs = yaml.unsafe_load(r.data)
+        linecount = 4
+        #TODO change 500
+        linew = 500
+        for line in logs:
+            if line['lvl'] == 'info' or line['lvl'] == 'debug' or line['lvl'] == 'target' or line['lvl'] == 'input':
+                if isinstance(line["msg"], list):
+                    linecount += 1
+                    if linew < len(line["msg"]):
+                        linew = len(line["msg"])
+                elif isinstance(line["msg"], dict):
+                    for msg in line["msg"]:
+                        if linew < len(line["msg"]):
+                            linew = len(msg)
+                        linecount += 1
+                else:
+                    if linew < len(line["msg"]):
+                        linew = len(line["msg"])
+                    linecount += 1
+            elif line['lvl'] == 'results':
+                linecount += 1
+                if "error_msg" in line["msg"]:
+                    for eline in line["msg"]["error_msg"].split("\n"):
+                        linecount += 1
+                        if linew < len(eline):
+                            linew = len(eline)
+            else:
+                linecount += 1
+        debug("Create job pad of %dx%d\n" % (linecount, linew))
+        wj[jobid]["linecount"] = linecount
+        wj[jobid]["vjpad"] = curses.newpad(linecount, linew)
         y = 2
         for line in logs:
-            if y > JOB_MAX_LINE:
-                y += 1
-                continue
+            if y > linecount:
+                debug("Linecount overflow %d" % y)
             if line['lvl'] == 'info' or line['lvl'] == 'debug' or line['lvl'] == 'target' or line['lvl'] == 'input':
                 if line["msg"] == None:
                     continue
@@ -457,7 +499,6 @@ def update_job(jobid):
             else:
                 wj[jobid]["vjpad"].addstr(y, 0, line["msg"].rstrip('\0'))
                 y += 1
-        wj[jobid]["wjob"].addstr(1, 1, "JOBID: %s LINES: %d" % (jobid, y))
 
 def global_options():
     cfg["wopt"].box("|", "-")
@@ -571,23 +612,27 @@ def main(stdscr):
             cfg["dpad"].noutrefresh(cfg["devices"]["offset"], 0, y, 0, y_max, cols - 1)
             y += cfg["devices"]["display"] + 1
 
-        if cfg["sc"] > cfg["cols"] - 30:
+        if cfg["sc"] > cfg["cols"] - 65 and cfg["jobs"]["where"] == 0:
             # too small, cannot print jobs on right
             cfg["jobs"]["where"] = 1
             msg = "TOO SMALL %d %d %d" % (cfg["sc"], cfg["cols"], cfg["cols"] - 30)
+            debug("Downgrade to no job windows sc=%d cols=%d\n" % (cfg["sc"], cfg["cols"]))
         if cfg["jobs"]["enable"]:
             update_jobs()
             if cfg["jobs"]["where"] == 1:
-                cfg["jobs"]["display"] = rows - y - 1
-                if cfg["jobs"]["title"] and not cfg["jobs"]["titletrunc"]:
-                    cfg["jobs"]["display"] = cfg["jobs"]["display"] / 2
-                cfg["jpad"].noutrefresh(cfg["jobs"]["offset"], 0, y + 1, 0, rows - 1, cols - 1)
-                stdscr.addstr(y, 0, "Jobs %d-%d/%d (refresh %d/%d)" % (
-                cfg["jobs"]["offset"] + 1,
-                cfg["jobs"]["display"] + cfg["jobs"]["offset"],
-                cfg["jobs"]["count"],
-                now - cache["jobs"]["time"],
-                cfg["jobs"]["refresh"]))
+                # on first switch we cannot display jobs
+                if rows > y:
+                    cfg["jobs"]["display"] = rows - y - 1
+                    if cfg["jobs"]["title"] and not cfg["jobs"]["titletrunc"]:
+                        cfg["jobs"]["display"] = cfg["jobs"]["display"] / 2
+                    #debug("display=%d y=%d row=%d cols=%d offset=%d" % (cfg["jobs"]["display"], y, rows, cols, cfg["jobs"]["offset"]))
+                    cfg["jpad"].noutrefresh(cfg["jobs"]["offset"], 0, y + 1, 0, rows - 1, cols - 1)
+                    stdscr.addstr(y, 0, "Jobs %d-%d/%d (refresh %d/%d)" % (
+                    cfg["jobs"]["offset"] + 1,
+                    cfg["jobs"]["display"] + cfg["jobs"]["offset"],
+                    cfg["jobs"]["count"],
+                    now - cache["jobs"]["time"],
+                    cfg["jobs"]["refresh"]))
             else:
                 cfg["jobs"]["display"] = cfg["rows"] - 7
                 if cfg["jobs"]["title"] and not cfg["jobs"]["titletrunc"]:
@@ -612,6 +657,7 @@ def main(stdscr):
         stdscr.noutrefresh()
 
         if cfg["vjob"] != None:
+            wj[cfg["vjob"]]["wjob"].addstr(1, 1, "JOBID: %s LINES: %d-x/%d" % (cfg["vjob"], cfg["vjob_off"], wj[cfg["vjob"]]["linecount"]))
             wj[cfg["vjob"]]["wjob"].box("|", "-")
             wj[cfg["vjob"]]["wjob"].noutrefresh()
             wj[cfg["vjob"]]["vjpad"].noutrefresh(cfg["vjob_off"], 0, 9, 9, rows - 9, cols - 9)
@@ -745,6 +791,7 @@ def main(stdscr):
                 if c == ord('n'):
                     cmd = 0
                     msg = switch_lab(False)
+                    stdscr.erase()
             elif cmd == ord('s'):
                 if c == ord('n'):
                     msg = "Sort by name"
@@ -841,6 +888,8 @@ def main(stdscr):
         if cfg["vjob_off"] < 0:
             cfg["vjob_off"] = 0
             msg = "STOP"
+        if cfg["vjob"] != None and cfg["vjob"] in wj and cfg["vjob_off"] > wj[cfg["vjob"]]["linecount"] - 1:
+            cfg["vjob_off"] = wj[cfg["vjob"]]["linecount"] - 1
         if cfg["tab"] > 2:
             cfg["tab"] = 0
         if cfg["tab"] == 0 and not cfg["workers"]["enable"]:
@@ -851,5 +900,8 @@ def main(stdscr):
             else:
                 exit = True
         check_limits()
+    # this is exit
+    if cfg["debug"] != None:
+        cfg["debug"].close()
 
 wrapper(main)

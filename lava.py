@@ -73,6 +73,15 @@ wj = {}
 cfg["debug"] = None
 cfg["debug"] = open("debug.log", 'w')
 
+L_RED = 1
+L_GREEN = 2
+L_BLUE = 3
+L_WHITE = 4
+L_CYAN = 5
+L_YELLOW = 6
+L_TGT = 7
+L_INPUT = 8
+
 try:
     tlabsfile = open("labs.yaml")
 except IOError:
@@ -434,6 +443,9 @@ def update_job(jobid):
         wj[jobid]["wjob"] = curses.newwin(cfg["rows"] - 8, cfg["cols"] - 8, 4, 4)
         r = cfg["lserver"].scheduler.job_output(jobid)
         logs = yaml.unsafe_load(r.data)
+        #fdebug = open("%s.out" % jobid, "w")
+        #yaml.dump(logs, fdebug)
+        #fdebug.close()
         linecount = 4
         #TODO change 500
         linew = 500
@@ -468,6 +480,17 @@ def update_job(jobid):
         for line in logs:
             if y > linecount:
                 debug("Linecount overflow %d" % y)
+            color = 4
+            if line['lvl'] == 'info':
+                color = L_CYAN
+            if line['lvl'] == 'debug':
+                color = L_WHITE
+            if line['lvl'] == 'error':
+                color = L_RED
+            if line['lvl'] == 'target':
+                color = L_TGT
+            if line['lvl'] == 'input':
+                color = L_INPUT
             if line['lvl'] == 'info' or line['lvl'] == 'debug' or line['lvl'] == 'target' or line['lvl'] == 'input':
                 if line["msg"] == None:
                     continue
@@ -475,7 +498,7 @@ def update_job(jobid):
                     wj[jobid]["vjpad"].addstr(y, 0, str(line))
                     y += 1
                     continue
-                wj[jobid]["vjpad"].addstr(y, 0, line["msg"].replace('\0', ''))
+                wj[jobid]["vjpad"].addstr(y, 0, line["msg"].replace('\0', ''), curses.color_pair(color))
                 y += 1
                 continue
             if line['lvl'] == 'error':
@@ -486,7 +509,7 @@ def update_job(jobid):
                 wj[jobid]["vjpad"].addstr(y, 0, "TEST: %s %s %s" % (line["msg"]["case"], line["msg"]["definition"], line["msg"]["result"]))
                 y += 1
                 if "error_msg" in line["msg"]:
-                    wj[jobid]["vjpad"].addstr(y, 0, line["msg"]["error_msg"])
+                    wj[jobid]["vjpad"].addstr(y, 0, line["msg"]["error_msg"], curses.color_pair(1))
                     y += 1
                 continue
             if isinstance(line["msg"], dict):
@@ -544,9 +567,14 @@ def main(stdscr):
     # devices = 1
     msg = ""
     cmd = 0
-    curses.init_pair(1, curses.COLOR_RED, curses.COLOR_BLACK)
-    curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)
-    curses.init_pair(3, curses.COLOR_BLUE, curses.COLOR_BLACK)
+    curses.init_pair(L_RED, curses.COLOR_RED, curses.COLOR_BLACK)
+    curses.init_pair(L_GREEN, curses.COLOR_GREEN, curses.COLOR_BLACK)
+    curses.init_pair(L_BLUE, curses.COLOR_BLUE, curses.COLOR_BLACK)
+    curses.init_pair(L_WHITE, curses.COLOR_WHITE, curses.COLOR_BLACK)
+    curses.init_pair(L_CYAN, curses.COLOR_CYAN, curses.COLOR_BLACK)
+    curses.init_pair(L_YELLOW, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+    curses.init_pair(L_TGT, curses.COLOR_GREEN, curses.COLOR_WHITE)
+    curses.init_pair(L_INPUT, curses.COLOR_BLACK, curses.COLOR_WHITE)
     stdscr.timeout(500)
 
 
@@ -677,25 +705,33 @@ def main(stdscr):
         #msg = ""
         c = stdscr.getch()
         if c == curses.KEY_UP:
-            cfg["select"] -= 1
-            if cfg["tab"] == 1:
-                cache["device"]["redraw"] = True
-            elif cfg["tab"] == 0:
-                cache["workers"]["redraw"] = True
+            if cfg["vjob"] != None:
+                # scroll job output
+                cfg["vjob_off"] -= 1
             else:
-                cache["jobs"]["redraw"] = True
+                cfg["select"] -= 1
+                if cfg["tab"] == 1:
+                    cache["device"]["redraw"] = True
+                elif cfg["tab"] == 0:
+                    cache["workers"]["redraw"] = True
+                else:
+                    cache["jobs"]["redraw"] = True
         elif c == curses.KEY_DOWN:
-            cfg["select"] += 1
-            if cfg["tab"] == 1:
-                cache["device"]["redraw"] = True
-            elif cfg["tab"] == 0:
-                cache["workers"]["redraw"] = True
+            if cfg["vjob"] != None:
+                # scroll job output
+                cfg["vjob_off"] += 1
             else:
-                cache["jobs"]["redraw"] = True
+                cfg["select"] += 1
+                if cfg["tab"] == 1:
+                    cache["device"]["redraw"] = True
+                elif cfg["tab"] == 0:
+                    cache["workers"]["redraw"] = True
+                else:
+                    cache["jobs"]["redraw"] = True
         elif c == curses.KEY_PPAGE:
             if cfg["vjob"] != None:
                 # scroll job output
-                cfg["vjob_off"] -= 100
+                cfg["vjob_off"] -= 20
             elif cfg["tab"] == 1:
                 #scroll devices
                 cfg["devices"]["offset"] -= 5
@@ -716,7 +752,7 @@ def main(stdscr):
         elif c == curses.KEY_NPAGE:
             if cfg["vjob"] != None:
                 # scroll job output
-                cfg["vjob_off"] += 100
+                cfg["vjob_off"] += 20
             elif cfg["tab"] == 1:
                 #scroll devices
                 cfg["devices"]["offset"] += 5

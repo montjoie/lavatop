@@ -647,7 +647,10 @@ def main(stdscr):
             else:
                 cache["jobs"]["redraw"] = True
         elif c == curses.KEY_PPAGE:
-            if cfg["tab"] == 1:
+            if cfg["vjob"] != None:
+                # scroll job output
+                cfg["vjob_off"] -= 100
+            elif cfg["tab"] == 1:
                 #scroll devices
                 cfg["devices"]["offset"] -= 5
                 cache["device"]["redraw"] = True
@@ -664,11 +667,11 @@ def main(stdscr):
                 # the select could has been hidden
                 if cfg["select"] > cfg["jobs"]["offset"] + cfg["jobs"]["display"]:
                     cfg["select"] = cfg["jobs"]["offset"] + cfg["jobs"]["display"]
-            else:
-                # scroll job output
-                cfg["vjob_off"] -= 100
         elif c == curses.KEY_NPAGE:
-            if cfg["tab"] == 1:
+            if cfg["vjob"] != None:
+                # scroll job output
+                cfg["vjob_off"] += 100
+            elif cfg["tab"] == 1:
                 #scroll devices
                 cfg["devices"]["offset"] += 5
                 cache["device"]["redraw"] = True
@@ -686,9 +689,6 @@ def main(stdscr):
                 # the select could has been hidden
                 if cfg["select"] < cfg["jobs"]["offset"]:
                     cfg["select"] = cfg["jobs"]["offset"]
-            else:
-                # scroll job output
-                cfg["vjob_off"] += 100
         elif c == ord("="):
             if cfg["tab"] == 0:
                 cfg["workers"]["select"] = []

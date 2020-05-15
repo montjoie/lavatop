@@ -587,7 +587,7 @@ def main(stdscr):
         if cfg["swin"] == None:
             cfg["swin"] = curses.newwin(3, cfg["cols"], 0, 0)
         cfg["swin"].erase()
-        cfg["swin"].addstr(0, 0, "Screen %dx%d Lab: %s Select: %d HELP: UP DOWN TAB [Q]uit" % (cols, rows, cfg["lab"]["name"], cfg["select"]))
+        cfg["swin"].addstr(0, 0, "Screen %dx%d Lab: %s Select: %d HELP: UP DOWN TAB [Q]uit [f]ilters [o]ptions" % (cols, rows, cfg["lab"]["name"], cfg["select"]))
         if cfg["tab"] == 0:
             cfg["swin"].addstr(1, 0, "WORKERS HELP: UP DOWN space")
         if cfg["tab"] == 1:
@@ -791,6 +791,8 @@ def main(stdscr):
                 else:
                     cfg["devices"]["select"].append(cfg["sdev"])
                 cache["device"]["redraw"] = True
+                if "devselect" in cfg["jobs"]["filter"]:
+                    cache["jobs"]["redraw"] = True
         elif c == 9:
             # TAB
             if cfg["tab"] == 0:

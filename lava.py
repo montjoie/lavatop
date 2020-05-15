@@ -132,8 +132,6 @@ switch_lab(True)
 def update_workers():
     now = time.time()
     y = -1
-    if cfg["wpad"] == None:
-        cfg["wpad"] = curses.newpad(100, 100)
     if not "workers" in cache:
         cache["workers"] = {}
         cache["workers"]["detail"] = {}
@@ -141,6 +139,13 @@ def update_workers():
     if now - cache["workers"]["time"] > cfg["workers"]["refresh"]:
         cache["workers"]["wlist"] = cfg["lserver"].scheduler.workers.list()
         cache["workers"]["time"] = time.time()
+        cache["workers"]["redraw"] = True
+    wmax = len(cache["workers"]["wlist"])
+    # if the number of worker changed, recreate window
+    if "count" in cfg["workers"] and cfg["workers"]["count"] < wmax:
+        cfg["wpad"] = None
+    if cfg["wpad"] == None:
+        cfg["wpad"] = curses.newpad(wmax, 100)
         cache["workers"]["redraw"] = True
     if not cache["workers"]["redraw"]:
         return

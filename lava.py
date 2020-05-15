@@ -754,6 +754,7 @@ def main(stdscr):
                     cfg["devices"]["select"].remove(cfg["sdev"])
                 else:
                     cfg["devices"]["select"].append(cfg["sdev"])
+                cache["device"]["redraw"] = True
         elif c == 9:
             # TAB
             if cfg["tab"] == 0:

@@ -37,6 +37,8 @@ cfg["jobs"]["where"] = 0
 cfg["jobs"]["title"] = True
 cfg["jobs"]["titletrunc"] = True
 cfg["jobs"]["offset"] = 0
+cfg["jobs"]["filter"] = []
+
 cfg["tab"] = 0
 cfg["select"] = 1
 cfg["sjob"] = None
@@ -51,10 +53,13 @@ cfg["sdev"] = None
 cfg["lab"] = None
 # the status window
 cfg["swin"] = None
+# windows for job list
 cfg["wjobs"] = None
 
 # global options
 cfg["wopt"] = None
+# filter window
+cfg["wfilter"] = None
 
 #second colum start
 cfg["sc"] = 0
@@ -312,6 +317,12 @@ def update_jobs():
     cfg["jpad"].erase()
     jlist = cache["jobs"]["jlist"]
     for job in jlist:
+        # filter
+        if "devselect" in cfg["jobs"]["filter"]:
+            if "actual_device" not in job:
+                continue
+            if job["actual_device"] not in cfg["devices"]["select"]:
+                continue
         x = 0
         ji += 1
         cfg["jobs"]["count"] = ji
@@ -469,6 +480,16 @@ def global_options():
         cfg["wopt"].addstr(7, 2, "[x] [T]runcate job title")
     else:
         cfg["wopt"].addstr(7, 2, "[ ] [T]runcate job title")
+    cfg["wopt"].addstr(2, 30, "DEVICENAME_LENMAX: %d" % cfg["lab"]["DEVICENAME_LENMAX"])
+
+def display_filters():
+    cfg["wfilter"].box("|", "-")
+    cfg["wfilter"].addstr(2, 2, "Devices filter")
+    if "devselect" in cfg["jobs"]["filter"]:
+        cfg["wfilter"].addstr(3, 2, "1 [x] Filter jobs from selected devices")
+    else:
+        cfg["wfilter"].addstr(3, 2, "1 [ ] Filter jobs from selected devices")
+    cfg["wfilter"].addstr(20, 2, "Jobs filter")
 
 def main(stdscr):
     # Clear screen
@@ -589,6 +610,10 @@ def main(stdscr):
             wj[cfg["vjob"]]["wjob"].box("|", "-")
             wj[cfg["vjob"]]["wjob"].noutrefresh()
             wj[cfg["vjob"]]["vjpad"].noutrefresh(cfg["vjob_off"], 0, 9, 9, rows - 9, cols - 9)
+
+        if cfg["wfilter"] != None:
+            display_filters()
+            cfg["wfilter"].noutrefresh()
 
         if cfg["wopt"] != None:
             global_options()
@@ -734,6 +759,17 @@ def main(stdscr):
             else:
                 cmd = 0
                 msg = "Invalid subcomand %s" % curses.unctrl(c)
+        elif c == ord('f'):
+            if cfg["wfilter"] == None:
+                cfg["wfilter"] = curses.newwin(cfg["rows"] - 8, cfg["cols"] - 8, 4, 4)
+            else:
+                cfg["wfilter"] = None
+        elif c == ord('1'):
+            if cfg["wfilter"] != None:
+                if "devselect" in cfg["jobs"]["filter"]:
+                    cfg["jobs"]["filter"].remove("devselect")
+                else:
+                    cfg["jobs"]["filter"].append("devselect")
         elif c == ord('w'):
             # worker window
             cfg["workers"]["enable"] = not cfg["workers"]["enable"]

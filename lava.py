@@ -25,6 +25,10 @@ cfg["devices"]["offset"] = 0
 cfg["devices"]["display"] = 0
 cfg["devices"]["select"] = []
 cfg["devices"]["sort"] = 0
+cfg["devtypes"] = {}
+cfg["devtypes"]["count"] = 0
+cfg["devtypes"]["offset"] = 0
+cfg["devtypes"]["refresh"] = 60
 cfg["jobs"] = {}
 cfg["jobs"]["enable"] = True
 cfg["jobs"]["count"] = 0
@@ -69,6 +73,9 @@ cfg["vjpad"] = None
 cfg["vjob_off"] = 0
 # indexed by jobid
 wj = {}
+
+wl = {}
+pl = {}
 
 cfg["debug"] = None
 cfg["debug"] = open("debug.log", 'w')
@@ -130,8 +137,12 @@ def switch_lab(usefirst):
                 cache["workers"]["detail"][worker]["time"] = 0
         if "jobs" in cache:
             cache["jobs"]["time"] = 0
+        if "devtypes" in cache:
+            cache["devtypes"]["time"] = 0
         if not "DEVICENAME_LENMAX" in new:
             cfg["lab"]["DEVICENAME_LENMAX"] = 24
+        if not "DEVTYPE_LENMAX" in new:
+            cfg["lab"]["DEVTYPE_LENMAX"] = 24
         if not "WKNAME_LENMAX" in new:
             cfg["lab"]["WKNAME_LENMAX"] = 10
         if not "JOB_LENMAX" in lab:
@@ -165,7 +176,7 @@ def update_workers():
             cfg["wpad"].noutrefresh(0, 0, 4, 0, cfg["rows"] - 1, cfg["cols"] - 1)
             cfg["wpad"] = None
     if cfg["wpad"] == None:
-        cfg["wpad"] = curses.newpad(wmax + 1, 100)
+        cfg["wpad"] = curses.newpad(wmax + 1, 200)
         cache["workers"]["redraw"] = True
     if not cache["workers"]["redraw"]:
         return
@@ -214,7 +225,10 @@ def update_workers():
             cfg["wpad"].addstr(y, x, wdet["health"], curses.color_pair(2))
         else:
             cfg["wpad"].addstr(y, x, wdet["health"], curses.color_pair(1))
-
+        x+= 7
+        # TODO job_limit:
+        # TODO last_ping:
+        # TODO version
 
 def update_devices():
     now = time.time()
@@ -225,7 +239,7 @@ def update_devices():
         cache["device"] = {}
         cache["device"]["time"] = 0
     if now - cache["device"]["time"] > cfg["devices"]["refresh"]:
-        cache["device"]["dlist"] = cfg["lserver"].scheduler.devices.list()
+        cache["device"]["dlist"] = cfg["lserver"].scheduler.devices.list(True, True)
         cache["device"]["time"] = time.time()
         cache["device"]["redraw"] = True
     if not cache["device"]["redraw"]:
@@ -233,6 +247,9 @@ def update_devices():
     cache["device"]["redraw"] = False
     cfg["dpad"].erase()
     dlist = cache["device"]["dlist"]
+    #fdebug = open("alldevices", "w")
+    #yaml.dump(dlist, fdebug)
+    #fdebug.close()
     di = 0
     # sort by health
     if cfg["devices"]["sort"] == 1:
@@ -318,6 +335,7 @@ def update_devices():
         x += cfg["lab"]["WKNAME_LENMAX"]
         if x > cfg["sc"]:
             cfg["sc"] = x
+        #TODO current_job
 
 def update_jobs():
     now = time.time()
@@ -560,6 +578,74 @@ def display_filters():
         cfg["wfilter"].addstr(3, 2, "1 [ ] Filter jobs from selected devices")
     cfg["wfilter"].addstr(20, 2, "Jobs filter")
 
+def print_device_type():
+    if "devtypes" not in pl:
+        pl["devtypes"] = curses.newpad(100, 200)
+    if not "devtypes" in cache:
+        cache["devtypes"] = {}
+        cache["devtypes"]["time"] = 0
+    now = time.time()
+    if now - cache["devtypes"]["time"] > cfg["devtypes"]["refresh"]:
+        cache["devtypes"]["dlist"] = cfg["lserver"].scheduler.device_types.list()
+        cache["devtypes"]["time"] = time.time()
+        cache["devtypes"]["redraw"] = True
+    if not cache["devtypes"]["redraw"]:
+        return
+    cache["devtypes"]["redraw"] = False
+    pl["devtypes"].erase()
+    wl["devtypes"].erase()
+    y = 1
+    cfg["devtypes"]["count"] = 0
+    for devtype in cache["devtypes"]["dlist"]:
+        x = 0
+        cfg["devtypes"]["count"] += 1
+        pl["devtypes"].addstr(y, x, devtype["name"])
+        if cfg["lab"]["DEVTYPE_LENMAX"] < len(devtype["name"]):
+            cfg["lab"]["DEVTYPE_LENMAX"] = len(devtype["name"])
+            cache["devtypes"]["redraw"] = True
+        x += cfg["lab"]["DEVTYPE_LENMAX"] + 1
+        pl["devtypes"].addstr(y, x, "%d" % devtype["devices"])
+        # TODO ? installed template
+        x += 6
+        dc = 0
+        for device in cache["device"]["dlist"]:
+            if device["type"] == devtype["name"] and device["state"] != 'Running' \
+                and device["health"] != 'Bad' \
+                and device["health"] != 'Maintenance' \
+                and device["health"] != 'Retired':
+                dc += 1
+        if dc > 0:
+            pl["devtypes"].addstr(y, x, "%d" % dc)
+        x += 5
+        dc = 0
+        for device in cache["device"]["dlist"]:
+            if device["type"] == devtype["name"] and (device["health"] == 'Bad'\
+                or device["health"] == 'Maintenance' \
+                or device["health"] == 'Retired'):
+                dc += 1
+        if dc > 0:
+            pl["devtypes"].addstr(y, x, "%d" % dc)
+        x += 8
+        dc = 0
+        for device in cache["device"]["dlist"]:
+            if device["type"] == devtype["name"] and device["state"] == 'Running':
+                dc += 1
+        if dc > 0:
+            pl["devtypes"].addstr(y, x, "%d" % dc)
+        y += 1
+
+def print_devtypes_title():
+    x = 1
+    wl["devtypes"].addstr(1, x, "Viewing %d-%d/%d" % (cfg["devtypes"]["offset"] + 1, cfg["devtypes"]["offset"] + cfg["devtypes"]["display"], cfg["devtypes"]["count"]))
+    x += cfg["lab"]["DEVTYPE_LENMAX"] + 1
+    wl["devtypes"].addstr(1, x, "Count")
+    x += 6
+    wl["devtypes"].addstr(1, x, "Idle")
+    x += 5
+    wl["devtypes"].addstr(1, x, "Offline")
+    x += 8
+    wl["devtypes"].addstr(1, x, "Busy")
+
 def main(stdscr):
     # Clear screen
     c = 0
@@ -690,6 +776,16 @@ def main(stdscr):
             wj[cfg["vjob"]]["wjob"].noutrefresh()
             wj[cfg["vjob"]]["vjpad"].noutrefresh(cfg["vjob_off"], 0, 9, 9, rows - 9, cols - 9)
 
+        if "devtypes" in wl:
+            print_device_type()
+            cfg["devtypes"]["display"] = cfg["rows"] - 12
+            if cfg["devtypes"]["display"] > cfg["devtypes"]["count"]:
+                cfg["devtypes"]["display"] = cfg["devtypes"]["count"]
+            print_devtypes_title()
+            wl["devtypes"].box("|", "-")
+            wl["devtypes"].noutrefresh()
+            pl["devtypes"].noutrefresh(cfg["devtypes"]["offset"], 0, 6, 5, cfg["rows"] - 6, cfg["cols"] - 5)
+
         if cfg["wfilter"] != None:
             display_filters()
             cfg["wfilter"].noutrefresh()
@@ -732,6 +828,11 @@ def main(stdscr):
             if cfg["vjob"] != None:
                 # scroll job output
                 cfg["vjob_off"] -= 20
+            elif "devtypes" in wl:
+                cfg["devtypes"]["offset"] -= 5
+                if cfg["devtypes"]["offset"] < 0:
+                    cfg["devtypes"]["offset"] = 0
+                cache["devtypes"]["redraw"] = True
             elif cfg["tab"] == 1:
                 #scroll devices
                 cfg["devices"]["offset"] -= 5
@@ -753,6 +854,11 @@ def main(stdscr):
             if cfg["vjob"] != None:
                 # scroll job output
                 cfg["vjob_off"] += 20
+            elif "devtypes" in wl:
+                cfg["devtypes"]["offset"] += 5
+                if cfg["devtypes"]["offset"] > cfg["devtypes"]["count"]:
+                    cfg["devtypes"]["offset"] = cfg["devtypes"]["count"]
+                cache["devtypes"]["redraw"] = True
             elif cfg["tab"] == 1:
                 #scroll devices
                 cfg["devices"]["offset"] += 5
@@ -793,6 +899,11 @@ def main(stdscr):
                 cache["device"]["redraw"] = True
                 if "devselect" in cfg["jobs"]["filter"]:
                     cache["jobs"]["redraw"] = True
+        elif c == curses.KEY_F1:
+            if "devtypes" in wl:
+                del wl["devtypes"]
+            else:
+                wl["devtypes"] = curses.newwin(cfg["rows"] - 8, cfg["cols"] - 8, 4, 4)
         elif c == 9:
             # TAB
             if cfg["tab"] == 0:

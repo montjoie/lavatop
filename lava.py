@@ -26,8 +26,6 @@ cfg["devices"]["display"] = 0
 cfg["devices"]["select"] = []
 cfg["devices"]["sort"] = 0
 cfg["devtypes"] = {}
-cfg["devtypes"]["count"] = 0
-cfg["devtypes"]["offset"] = 0
 cfg["devtypes"]["refresh"] = 60
 cfg["jobs"] = {}
 cfg["jobs"]["enable"] = True
@@ -156,6 +154,136 @@ def switch_lab(usefirst):
     return "switch error"
 
 switch_lab(True)
+
+
+
+
+
+class lava_win:
+    def __init__(self):
+        self.sx = 0
+        self.sy = 0
+        self.win = None
+        self.pad = None
+        self.count = 0
+        self.offset = 0
+        self.display = 0
+        self.redraw = False
+        # for cache
+        self.dt_time = 0
+        self.d_time = 0
+        self.wtime = 0
+
+    def setup(self, sx, sy, wx, wy):
+        # recreate window if size change
+        if self.sx != sx:
+            self.win = None
+        if self.sy != sy:
+            self.win = None
+        self.sx = sx
+        self.sy = sy
+        self.wx = wx
+        self.wy = wy
+        if self.win == None:
+            self.win = curses.newwin(sx, sy, wx, wy)
+
+    def fill(self, cache, lserver, cfg):
+        return False
+
+    def handle_key(c):
+        return False
+
+class win_devtypes(lava_win):
+    def fill(self, cache, lserver, cfg):
+        if self.pad == None:
+            self.pad = curses.newpad(100, 200)
+        # check need of redraw
+        if not self.redraw and self.dt_time == cache["devtypes"]["time"]:
+            return
+
+        self.win.erase()
+        self.pad.erase()
+        self.redraw = False
+        self.count = 0
+        y = 1
+        self.dt_time = cache["devtypes"]["time"]
+        for devtype in cache["devtypes"]["dlist"]:
+            x = 0
+            self.count += 1
+            self.pad.addstr(y, x, devtype["name"])
+            if cfg["lab"]["DEVTYPE_LENMAX"] < len(devtype["name"]):
+                cfg["lab"]["DEVTYPE_LENMAX"] = len(devtype["name"])
+                self.dt_time = 0
+            x += cfg["lab"]["DEVTYPE_LENMAX"] + 1
+            self.pad.addstr(y, x, "%d" % devtype["devices"])
+            # TODO ? installed template
+            x += 6
+            dc = 0
+            for device in cache["device"]["dlist"]:
+                if device["type"] == devtype["name"] and device["state"] != 'Running' \
+                    and device["health"] != 'Bad' \
+                    and device["health"] != 'Maintenance' \
+                    and device["health"] != 'Retired':
+                    dc += 1
+            if dc > 0:
+                self.pad.addstr(y, x, "%d" % dc)
+            x += 5
+            dc = 0
+            for device in cache["device"]["dlist"]:
+                if device["type"] == devtype["name"] and (device["health"] == 'Bad'\
+                    or device["health"] == 'Maintenance' \
+                    or device["health"] == 'Retired'):
+                    dc += 1
+            if dc > 0:
+                self.pad.addstr(y, x, "%d" % dc)
+            x += 8
+            dc = 0
+            for device in cache["device"]["dlist"]:
+                if device["type"] == devtype["name"] and device["state"] == 'Running':
+                    dc += 1
+            if dc > 0:
+                self.pad.addstr(y, x, "%d" % dc)
+            y += 1
+        # decoration: 2, title 1
+        self.display = self.sy - 2 - 1
+        if self.display > self.count:
+            self.display = self.count
+
+    def show(self, cfg):
+        # title
+        x = 1
+        self.win.addstr(1, x, "Viewing %d-%d/%d" % (self.offset + 1, self.offset + self.display, self.count))
+        x += cfg["lab"]["DEVTYPE_LENMAX"] + 1
+        self.win.addstr(1, x, "Count")
+        x += 6
+        self.win.addstr(1, x, "Idle")
+        x += 5
+        self.win.addstr(1, x, "Offline")
+        x += 8
+        self.win.addstr(1, x, "Busy")
+
+        self.win.box("|", "-")
+        self.win.noutrefresh()
+        self.pad.noutrefresh(self.offset, 0, self.wy + 2, self.wx + 1, self.wx + self.sx - 4, self.wy + self.sy - 4)
+
+    def handle_key(self, c):
+        # this window should handle PG UP PG DOWN
+        if c == curses.KEY_PPAGE:
+            self.offset -= 5
+            if self.offset < 0:
+                self.offset = 0
+            self.redraw = True
+            return True
+        if c == curses.KEY_NPAGE:
+            self.offset += 5
+            if self.offset > self.count:
+                self.offset = self.count
+            self.redraw = True
+            return True
+        return False
+
+# end of device types #
+
 
 def update_workers():
     now = time.time()
@@ -579,9 +707,8 @@ def display_filters():
         cfg["wfilter"].addstr(3, 2, "1 [ ] Filter jobs from selected devices")
     cfg["wfilter"].addstr(20, 2, "Jobs filter")
 
-def print_device_type():
-    if "devtypes" not in pl:
-        pl["devtypes"] = curses.newpad(100, 200)
+# TODO get limits here
+def update_cache():
     if not "devtypes" in cache:
         cache["devtypes"] = {}
         cache["devtypes"]["time"] = 0
@@ -589,63 +716,6 @@ def print_device_type():
     if now - cache["devtypes"]["time"] > cfg["devtypes"]["refresh"]:
         cache["devtypes"]["dlist"] = cfg["lserver"].scheduler.device_types.list()
         cache["devtypes"]["time"] = time.time()
-        cache["devtypes"]["redraw"] = True
-    if not cache["devtypes"]["redraw"]:
-        return
-    cache["devtypes"]["redraw"] = False
-    pl["devtypes"].erase()
-    wl["devtypes"].erase()
-    y = 1
-    cfg["devtypes"]["count"] = 0
-    for devtype in cache["devtypes"]["dlist"]:
-        x = 0
-        cfg["devtypes"]["count"] += 1
-        pl["devtypes"].addstr(y, x, devtype["name"])
-        if cfg["lab"]["DEVTYPE_LENMAX"] < len(devtype["name"]):
-            cfg["lab"]["DEVTYPE_LENMAX"] = len(devtype["name"])
-            cache["devtypes"]["redraw"] = True
-        x += cfg["lab"]["DEVTYPE_LENMAX"] + 1
-        pl["devtypes"].addstr(y, x, "%d" % devtype["devices"])
-        # TODO ? installed template
-        x += 6
-        dc = 0
-        for device in cache["device"]["dlist"]:
-            if device["type"] == devtype["name"] and device["state"] != 'Running' \
-                and device["health"] != 'Bad' \
-                and device["health"] != 'Maintenance' \
-                and device["health"] != 'Retired':
-                dc += 1
-        if dc > 0:
-            pl["devtypes"].addstr(y, x, "%d" % dc)
-        x += 5
-        dc = 0
-        for device in cache["device"]["dlist"]:
-            if device["type"] == devtype["name"] and (device["health"] == 'Bad'\
-                or device["health"] == 'Maintenance' \
-                or device["health"] == 'Retired'):
-                dc += 1
-        if dc > 0:
-            pl["devtypes"].addstr(y, x, "%d" % dc)
-        x += 8
-        dc = 0
-        for device in cache["device"]["dlist"]:
-            if device["type"] == devtype["name"] and device["state"] == 'Running':
-                dc += 1
-        if dc > 0:
-            pl["devtypes"].addstr(y, x, "%d" % dc)
-        y += 1
-
-def print_devtypes_title():
-    x = 1
-    wl["devtypes"].addstr(1, x, "Viewing %d-%d/%d" % (cfg["devtypes"]["offset"] + 1, cfg["devtypes"]["offset"] + cfg["devtypes"]["display"], cfg["devtypes"]["count"]))
-    x += cfg["lab"]["DEVTYPE_LENMAX"] + 1
-    wl["devtypes"].addstr(1, x, "Count")
-    x += 6
-    wl["devtypes"].addstr(1, x, "Idle")
-    x += 5
-    wl["devtypes"].addstr(1, x, "Offline")
-    x += 8
-    wl["devtypes"].addstr(1, x, "Busy")
 
 def main(stdscr):
     # Clear screen
@@ -671,6 +741,8 @@ def main(stdscr):
         rows, cols = stdscr.getmaxyx()
         cfg["rows"] = rows
         cfg["cols"] = cols
+        update_cache()
+
         if cfg["swin"] == None:
             cfg["swin"] = curses.newwin(3, cfg["cols"], 0, 0)
         cfg["swin"].erase()
@@ -778,14 +850,9 @@ def main(stdscr):
             wj[cfg["vjob"]]["vjpad"].noutrefresh(cfg["vjob_off"], 0, 9, 9, rows - 9, cols - 9)
 
         if "devtypes" in wl:
-            print_device_type()
-            cfg["devtypes"]["display"] = cfg["rows"] - 12
-            if cfg["devtypes"]["display"] > cfg["devtypes"]["count"]:
-                cfg["devtypes"]["display"] = cfg["devtypes"]["count"]
-            print_devtypes_title()
-            wl["devtypes"].box("|", "-")
-            wl["devtypes"].noutrefresh()
-            pl["devtypes"].noutrefresh(cfg["devtypes"]["offset"], 0, 6, 5, cfg["rows"] - 6, cfg["cols"] - 5)
+            wl["devtypes"].setup(cfg["rows"] - 8, cfg["cols"] - 8, 4, 4)
+            wl["devtypes"].fill(cache, cfg["lserver"], cfg)
+            wl["devtypes"].show(cfg)
 
         if cfg["wfilter"] != None:
             display_filters()
@@ -801,6 +868,9 @@ def main(stdscr):
         y += 1
         #msg = ""
         c = stdscr.getch()
+        if "devtypes" in wl:
+            if wl["devtypes"].handle_key(c):
+                c = -1
         if c == curses.KEY_UP:
             if cfg["vjob"] != None:
                 # scroll job output
@@ -829,11 +899,6 @@ def main(stdscr):
             if cfg["vjob"] != None:
                 # scroll job output
                 cfg["vjob_off"] -= 20
-            elif "devtypes" in wl:
-                cfg["devtypes"]["offset"] -= 5
-                if cfg["devtypes"]["offset"] < 0:
-                    cfg["devtypes"]["offset"] = 0
-                cache["devtypes"]["redraw"] = True
             elif cfg["tab"] == 1:
                 #scroll devices
                 cfg["devices"]["offset"] -= 5
@@ -855,11 +920,6 @@ def main(stdscr):
             if cfg["vjob"] != None:
                 # scroll job output
                 cfg["vjob_off"] += 20
-            elif "devtypes" in wl:
-                cfg["devtypes"]["offset"] += 5
-                if cfg["devtypes"]["offset"] > cfg["devtypes"]["count"]:
-                    cfg["devtypes"]["offset"] = cfg["devtypes"]["count"]
-                cache["devtypes"]["redraw"] = True
             elif cfg["tab"] == 1:
                 #scroll devices
                 cfg["devices"]["offset"] += 5
@@ -904,7 +964,7 @@ def main(stdscr):
             if "devtypes" in wl:
                 del wl["devtypes"]
             else:
-                wl["devtypes"] = curses.newwin(cfg["rows"] - 8, cfg["cols"] - 8, 4, 4)
+                wl["devtypes"] = win_devtypes()
         elif c == 9:
             # TAB
             if cfg["tab"] == 0:
@@ -1003,6 +1063,8 @@ def main(stdscr):
             # close
             if cfg["wopt"] != None:
                 cfg["wopt"] = None
+            elif "devtypes" in wl:
+                del wl["devtypes"]
             else:
                 cmd = 0
                 cfg["vjob"] = None

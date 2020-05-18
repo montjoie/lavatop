@@ -10,10 +10,7 @@ cache = {}
 cfg = {}
 cfg["workers"] = {}
 cfg["workers"]["enable"] = True
-cfg["workers"]["count"] = 0
-cfg["workers"]["redraw"] = False
 cfg["workers"]["refresh"] = 60
-cfg["workers"]["select"] = []
 cfg["devices"] = {}
 cfg["devices"]["enable"] = True
 cfg["devices"]["count"] = 0
@@ -42,7 +39,6 @@ cfg["jobs"]["filter"] = []
 cfg["tab"] = 0
 cfg["select"] = 1
 cfg["sjob"] = None
-cfg["wpad"] = None
 cfg["dpad"] = None
 cfg["jpad"] = None
 # selected worker
@@ -92,9 +88,12 @@ def debug(msg):
     cfg["debug"].flush()
 
 def switch_lab(usefirst):
+    global cache
     # closes some lab specific window
     if "viewjob" in wl:
         del wl["viewjob"]
+    if "workers" in wl:
+        del wl["workers"]
     new = None
     usenext = usefirst
     for lab in labs["labs"]:
@@ -118,19 +117,7 @@ def switch_lab(usefirst):
         cfg["lab"] = new
         LAVAURI = new["lavauri"]
         cfg["lserver"] = xmlrpc.client.ServerProxy(LAVAURI, allow_none=True)
-        if "device" in cache:
-            cache["device"]["time"] = 0
-            for dname in cache["device"]:
-                if isinstance(cache["device"][dname], dict):
-                    cache["device"][dname]["time"] = 0
-        if "workers" in cache:
-            cache["workers"]["time"] = 0
-            for worker in cache["workers"]["detail"]:
-                cache["workers"]["detail"][worker]["time"] = 0
-        if "jobs" in cache:
-            cache["jobs"]["time"] = 0
-        if "devtypes" in cache:
-            cache["devtypes"]["time"] = 0
+        cache = {}
         if not "DEVICENAME_LENMAX" in new:
             cfg["lab"]["DEVICENAME_LENMAX"] = 24
         if not "DEVTYPE_LENMAX" in new:
@@ -142,7 +129,10 @@ def switch_lab(usefirst):
         if not "USER_LENMAX" in lab:
             cfg["lab"]["USER_LENMAX"] = 10
         cfg["devices"]["select"] = []
-        cfg["workers"]["select"] = None
+        if "workers" in wl:
+            wl["workers"].select = None
+        cfg["swk"] = None
+        cfg["sdev"] = None
         debug("Switched to %s\n" % new["name"])
         return "Switched to %s" % new["name"]
     return "switch error"
@@ -163,6 +153,9 @@ class lava_win:
         self.offset = 0
         self.display = 0
         self.redraw = False
+        # current selection
+        self.cselect = 1
+        self.select = None
         # for cache
         self.dt_time = 0
         self.d_time = 0
@@ -179,7 +172,8 @@ class lava_win:
         self.wx = wx
         self.wy = wy
         if self.win == None:
-            self.win = curses.newwin(sx, sy, wx, wy)
+            debug("Create window %dx%d at %x,%d\n" % (sx, sy, wx, wy))
+            self.win = curses.newwin(sx, sy, wy, wx)
 
     def fill(self, cache, lserver, cfg):
         return False
@@ -326,9 +320,9 @@ class win_view_job(lava_win):
                             linew = len(eline)
             else:
                 self.count += 1
-        debug("Create job pad of %dx%d\n" % (self.count, linew))
         # TODO verify count/line change
         if self.pad == None:
+            debug("Create job pad of %dx%d\n" % (self.count, linew))
             self.pad = curses.newpad(self.count, linew)
         self.pad.erase()
         y = 2
@@ -421,93 +415,107 @@ class win_view_job(lava_win):
 
 # end of view job  #
 
-
-def update_workers():
-    now = time.time()
-    y = -1
-    if not "workers" in cache:
-        cache["workers"] = {}
-        cache["workers"]["detail"] = {}
-        cache["workers"]["time"] = 0
-    if now - cache["workers"]["time"] > cfg["workers"]["refresh"]:
-        cache["workers"]["wlist"] = cfg["lserver"].scheduler.workers.list()
-        cache["workers"]["time"] = time.time()
-        cache["workers"]["redraw"] = True
-    wmax = len(cache["workers"]["wlist"])
-    # if the number of worker changed, recreate window
-    if "count" in cfg["workers"] and cfg["workers"]["count"] < wmax:
-        if cfg["wpad"] != None:
-            cfg["wpad"].clear()
-            cfg["wpad"].noutrefresh(0, 0, 4, 0, cfg["rows"] - 1, cfg["cols"] - 1)
-            cfg["wpad"] = None
-    if cfg["wpad"] == None:
-        cfg["wpad"] = curses.newpad(wmax + 1, 200)
-        cache["workers"]["redraw"] = True
-    if not cache["workers"]["redraw"]:
-        return
-    cache["workers"]["redraw"] = False
-    cfg["wpad"].erase()
-    wlist = cache["workers"]["wlist"]
-    wi = 0
-    if cfg["workers"]["select"] == None:
-        cfg["workers"]["select"] = []
+class win_workers(lava_win):
+    def fill(self, cache, lserver, cfg):
+        y = 0
+        wmax = len(cache["workers"]["wlist"])
+        # if the number of worker changed, recreate window
+        if self.count < wmax:
+            self.pad = None
+        if self.pad == None:
+            self.pad = curses.newpad(wmax + 1, 200)
+            self.redraw = True
+        if not self.redraw:
+            return
+        self.redraw = False
+        self.win.erase()
+        self.pad.erase()
+        wlist = cache["workers"]["wlist"]
+        wi = 0
+        if self.select == None:
+            self.select = []
+            for worker in wlist:
+                self.select.append(worker)
         for worker in wlist:
-            cfg["workers"]["select"].append(worker)
-    for worker in wlist:
-        if not worker in cache["workers"]["detail"]:
-            cache["workers"]["detail"][worker] = {}
-            cache["workers"]["detail"][worker]["time"] = 0
-        if now - cache["workers"]["detail"][worker]["time"] > 10:
-            cache["workers"]["detail"][worker]["time"] = time.time()
-            cache["workers"]["detail"][worker]["wdet"] = cfg["lserver"].scheduler.workers.show(worker)
-        wdet = cache["workers"]["detail"][worker]["wdet"]
-        wi += 1
-        cfg["workers"]["count"] = wi
-        y += 1
-        x = 4
-        if worker in cfg["workers"]["select"]:
-            cfg["wpad"].addstr(y, 0, "[x]")
-        else:
-            cfg["wpad"].addstr(y, 0, "[ ]")
-        if cfg["select"] == wi and cfg["tab"] == 0:
-            cfg["wpad"].addstr(y, x, worker, curses.A_BOLD)
-            cfg["swk"] = worker
-        else:
-            cfg["wpad"].addstr(y, x, worker)
-        if len(worker) > cfg["lab"]["WKNAME_LENMAX"]:
-            cfg["lab"]["WKNAME_LENMAX"] = len(worker) + 1
-            debug("WKNAME_LENMAX set to %d\n" % cfg["lab"]["WKNAME_LENMAX"])
-            cache["workers"]["redraw"] = True
-        x += cfg["lab"]["WKNAME_LENMAX"]
-        if wdet["state"] == 'Offline':
-            cfg["wpad"].addstr(y, x, wdet["state"], curses.color_pair(1))
-        elif wdet["state"] == 'Online':
-            cfg["wpad"].addstr(y, x, wdet["state"], curses.color_pair(2))
-        else:
-            cfg["wpad"].addstr(y, x, wdet["state"])
-        x += 10
-        if wdet["health"] == 'Active':
-            cfg["wpad"].addstr(y, x, wdet["health"], curses.color_pair(2))
-        else:
-            cfg["wpad"].addstr(y, x, wdet["health"], curses.color_pair(1))
-        x+= 7
-        if "version" in wdet and wdet["version"] != None:
-            cfg["wpad"].addstr(y, x, wdet["version"])
+            wdet = cache["workers"]["detail"][worker]["wdet"]
+            wi += 1
+            self.count = wi
+            if worker in self.select:
+                self.pad.addstr(y, 0, "[x]")
+            else:
+                self.pad.addstr(y, 0, "[ ]")
+            x = 4
+            if self.cselect == wi and cfg["tab"] == 0:
+                self.pad.addstr(y, x, worker, curses.A_BOLD)
+                cfg["swk"] = worker
+            else:
+                self.pad.addstr(y, x, worker)
+            x += cfg["lab"]["WKNAME_LENMAX"]
+            if wdet["state"] == 'Offline':
+                self.pad.addstr(y, x, wdet["state"], curses.color_pair(1))
+            elif wdet["state"] == 'Online':
+                self.pad.addstr(y, x, wdet["state"], curses.color_pair(2))
+            else:
+                self.pad.addstr(y, x, wdet["state"])
+            x += 10
+            if wdet["health"] == 'Active':
+                self.pad.addstr(y, x, wdet["health"], curses.color_pair(2))
+            else:
+                self.pad.addstr(y, x, wdet["health"], curses.color_pair(1))
+            x+= 7
+            if "version" in wdet and wdet["version"] != None:
+                self.pad.addstr(y, x, wdet["version"])
+            y += 1
         # TODO job_limit:
         # TODO last_ping:
+        self.display = self.count
+
+    def show(self, cfg):
+        # title
+        self.win.addstr(0, 0, "Workers %d-%d/%d" % (self.offset + 1, self.offset + self.display, self.count))
+
+        #self.win.box("|", "-")
+        self.win.noutrefresh()
+        self.pad.noutrefresh(self.offset, 0, self.wy + 1, self.wx, self.wx + self.sx, self.wy + self.sy)
+
+    def handle_key(self, c):
+        # this window should handle UP DOWN = space
+        if c == curses.KEY_UP:
+            self.cselect -= 1
+            if self.cselect < 0:
+                self.cselect = 0
+            self.redraw = True
+            cache["device"]["redraw"] = True
+            return True
+        if c == curses.KEY_DOWN:
+            self.cselect += 1
+            if self.cselect > self.count:
+                self.cselect = self.count
+            self.redraw = True
+            cache["device"]["redraw"] = True
+            return True
+        if c == ord("="):
+            self.select = []
+            self.select.append(cfg["swk"])
+            cache["device"]["redraw"] = True
+            self.redraw = True
+            return True
+        if c == ord(" "):
+            if cfg["swk"] in self.select:
+                self.select.remove(cfg["swk"])
+            else:
+                self.select.append(cfg["swk"])
+            cache["device"]["redraw"] = True
+            self.redraw = True
+            return True
+        return False
+# end of view worker  #
 
 def update_devices():
     now = time.time()
     y = -1
     if cfg["dpad"] == None:
         cfg["dpad"] = curses.newpad(100, cfg["cols"])
-    if not "device" in cache:
-        cache["device"] = {}
-        cache["device"]["time"] = 0
-    if now - cache["device"]["time"] > cfg["devices"]["refresh"]:
-        cache["device"]["dlist"] = cfg["lserver"].scheduler.devices.list(True, True)
-        cache["device"]["time"] = time.time()
-        cache["device"]["redraw"] = True
     if not cache["device"]["redraw"]:
         return
     cache["device"]["redraw"] = False
@@ -555,7 +563,7 @@ def update_devices():
             cache["device"][dname]["time"] = time.time()
         ddetail = cache["device"][dname]
 
-        if ddetail["worker"] not in cfg["workers"]["select"]:
+        if "workers" in wl and wl["workers"].select != None and ddetail["worker"] not in wl["workers"].select:
             continue
         x = 4
         y += 1
@@ -688,10 +696,6 @@ def update_jobs():
 def check_limits():
     if cfg["select"] < 1:
         cfg["select"] = 1
-    # verify limits for worker
-    if cfg["tab"] == 0:
-        if cfg["select"] > cfg["workers"]["count"]:
-            cfg["select"] = cfg["workers"]["count"]
     # verify limits for devices
     if cfg["tab"] == 1:
         # check offset
@@ -756,10 +760,35 @@ def display_filters():
 
 # TODO get limits here
 def update_cache():
+    now = time.time()
+    if not "device" in cache:
+        cache["device"] = {}
+        cache["device"]["time"] = 0
+    if now - cache["device"]["time"] > cfg["devices"]["refresh"]:
+        cache["device"]["dlist"] = cfg["lserver"].scheduler.devices.list(True, True)
+        cache["device"]["time"] = time.time()
+        cache["device"]["redraw"] = True
+    if not "workers" in cache:
+        cache["workers"] = {}
+        cache["workers"]["detail"] = {}
+        cache["workers"]["time"] = 0
+    if now - cache["workers"]["time"] > cfg["workers"]["refresh"]:
+        cache["workers"]["wlist"] = cfg["lserver"].scheduler.workers.list()
+        cache["workers"]["time"] = time.time()
+    for worker in cache["workers"]["wlist"]:
+        #debug("Refresh %s\n" % worker)
+        if len(worker) > cfg["lab"]["WKNAME_LENMAX"]:
+            cfg["lab"]["WKNAME_LENMAX"] = len(worker) + 1
+            debug("WKNAME_LENMAX set to %d\n" % cfg["lab"]["WKNAME_LENMAX"])
+        if not worker in cache["workers"]["detail"]:
+            cache["workers"]["detail"][worker] = {}
+            cache["workers"]["detail"][worker]["time"] = 0
+        if now - cache["workers"]["detail"][worker]["time"] > 10:
+            cache["workers"]["detail"][worker]["time"] = time.time()
+            cache["workers"]["detail"][worker]["wdet"] = cfg["lserver"].scheduler.workers.show(worker)
     if not "devtypes" in cache:
         cache["devtypes"] = {}
         cache["devtypes"]["time"] = 0
-    now = time.time()
     if now - cache["devtypes"]["time"] > cfg["devtypes"]["refresh"]:
         cache["devtypes"]["dlist"] = cfg["lserver"].scheduler.device_types.list()
         cache["devtypes"]["time"] = time.time()
@@ -807,20 +836,12 @@ def main(stdscr):
 
         y = 3
         if cfg["workers"]["enable"]:
-            update_workers()
-            check_limits()
-            
-            stdscr.addstr(y, 0, "Workers %d-%d/%d (refresh %d/%d)" %
-                (
-                1,
-                cfg["workers"]["count"],
-                cfg["workers"]["count"],
-                now - cache["workers"]["time"],
-                cfg["workers"]["refresh"]
-                ))
-            y += 1
-            cfg["wpad"].noutrefresh(0, 0, y, 0, rows - 1, cols - 1)
-            y += cfg["workers"]["count"] + 1
+            if not "workers" in wl:
+                wl["workers"] = win_workers()
+            wl["workers"].setup(cfg["lab"]["WKNAME_LENMAX"] + 21, 100, 0, y)
+            wl["workers"].fill(cache, cfg["lserver"], cfg)
+            wl["workers"].show(cfg)
+            y += wl["workers"].display + 2
 
         # devices
         if cfg["devices"]["enable"]:
@@ -875,6 +896,7 @@ def main(stdscr):
         if cfg["wjobs"] == None and cfg["jobs"]["where"] == 0:
             cfg["wjobs"] = curses.newwin(cfg["rows"] - 4, cfg["cols"] - cfg["sc"], 4, cfg["sc"])
         if cfg["wjobs"] != None:
+            cfg["wjobs"].erase()
             cfg["wjobs"].box("|", "-")
             cfg["wjobs"].addstr(1, 1, "Jobs %d-%d/%d (refresh %d/%d)" % (
                 cfg["jobs"]["offset"] + 1,
@@ -917,20 +939,19 @@ def main(stdscr):
         if c > 0 and "viewjob" in wl:
             if wl["viewjob"].handle_key(c):
                 c = -1
+        if c > 0 and "workers" in wl and cfg["tab"] == 0:
+            if wl["workers"].handle_key(c):
+                c = -1
         if c == curses.KEY_UP:
             cfg["select"] -= 1
             if cfg["tab"] == 1:
                 cache["device"]["redraw"] = True
-            elif cfg["tab"] == 0:
-                cache["workers"]["redraw"] = True
             else:
                 cache["jobs"]["redraw"] = True
         elif c == curses.KEY_DOWN:
             cfg["select"] += 1
             if cfg["tab"] == 1:
                 cache["device"]["redraw"] = True
-            elif cfg["tab"] == 0:
-                cache["workers"]["redraw"] = True
             else:
                 cache["jobs"]["redraw"] = True
         elif c == curses.KEY_PPAGE:
@@ -970,20 +991,7 @@ def main(stdscr):
                 # the select could has been hidden
                 if cfg["select"] < cfg["jobs"]["offset"]:
                     cfg["select"] = cfg["jobs"]["offset"]
-        elif c == ord("="):
-            if cfg["tab"] == 0:
-                cfg["workers"]["select"] = []
-                cfg["workers"]["select"].append(cfg["swk"])
-                cache["device"]["redraw"] = True
-                cache["workers"]["redraw"] = True
         elif c == ord(" "):
-            if cfg["tab"] == 0:
-                if cfg["swk"] in cfg["workers"]["select"]:
-                    cfg["workers"]["select"].remove(cfg["swk"])
-                else:
-                    cfg["workers"]["select"].append(cfg["swk"])
-                cache["device"]["redraw"] = True
-                cache["workers"]["redraw"] = True
             if cfg["tab"] == 1:
                 if cfg["sdev"] in cfg["devices"]["select"]:
                     cfg["devices"]["select"].remove(cfg["sdev"])
@@ -1001,8 +1009,9 @@ def main(stdscr):
             # TAB
             if cfg["tab"] == 0:
                 cfg["tab"] = 1
-                cache["workers"]["redraw"] = True
                 cache["device"]["redraw"] = True
+                if "workers" in wl:
+                    wl["workers"].redraw = True
                 msg = "Switched to devices tab"
             elif cfg["tab"] == 1:
                 cfg["tab"] = 2
@@ -1011,8 +1020,9 @@ def main(stdscr):
                 msg = "Switched to jobs tab"
             else:
                 cfg["tab"] = 0
+                if "workers" in wl:
+                    wl["workers"].redraw = True
                 cache["jobs"]["redraw"] = True
-                cache["workers"]["redraw"] = True
                 msg = "Switched to worker tab"
         elif cmd > 0 and c > 0:
             # want a subcommand

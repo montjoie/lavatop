@@ -170,6 +170,7 @@ class lava_win:
         if self.win == None:
             debug("Create window %dx%d at %d,%d\n" % (sx, sy, wx, wy))
             self.win = curses.newwin(sy, sx, wy, wx)
+            self.redraw = True
 
     def fill(self, cache, lserver, cfg):
         return False

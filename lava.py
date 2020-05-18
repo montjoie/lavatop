@@ -226,9 +226,10 @@ def update_workers():
         else:
             cfg["wpad"].addstr(y, x, wdet["health"], curses.color_pair(1))
         x+= 7
+        if "version" in wdet and wdet["version"] != None:
+            cfg["wpad"].addstr(y, x, wdet["version"])
         # TODO job_limit:
         # TODO last_ping:
-        # TODO version
 
 def update_devices():
     now = time.time()

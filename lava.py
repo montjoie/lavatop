@@ -41,8 +41,6 @@ cfg["swin"] = None
 
 # global options
 cfg["wopt"] = None
-# filter window
-cfg["wfilter"] = None
 
 #second colum start
 cfg["sc"] = 0
@@ -144,6 +142,7 @@ class lava_win:
         self.display = 0
         self.redraw = False
         self.box = False
+        self.close = False
         # current selection
         self.cselect = 1
         self.select = None
@@ -829,16 +828,51 @@ def global_options():
         cfg["wopt"].addstr(7, 2, "[ ] [T]runcate job title")
     cfg["wopt"].addstr(2, 30, "DEVICENAME_LENMAX: %d" % cfg["lab"]["DEVICENAME_LENMAX"])
 
-def display_filters():
-    cfg["wfilter"].box("|", "-")
-    cfg["wfilter"].addstr(2, 2, "Devices filter")
-    if "devselect" in cfg["jobs"]["filter"]:
-        cfg["wfilter"].addstr(3, 2, "1 [x] Filter jobs from selected devices")
-        if "joblist" in wl:
-            wl["joblist"].redraw = True
-    else:
-        cfg["wfilter"].addstr(3, 2, "1 [ ] Filter jobs from selected devices")
-    cfg["wfilter"].addstr(20, 2, "Jobs filter")
+class win_filters(lava_win):
+    def fill(self, cache, lserver, cfg):
+        self.win.erase()
+        self.win.addstr(2, 2, "Devices filter")
+        if "devselect" in cfg["jobs"]["filter"]:
+            self.win.addstr(3, 2, "1 [x] Filter jobs from selected devices")
+            if "joblist" in wl:
+                wl["joblist"].redraw = True
+        else:
+            self.win.addstr(3, 2, "1 [ ] Filter jobs from selected devices")
+        self.win.addstr(20, 2, "Jobs filter")
+
+    def show(self, cfg):
+        self.box = True
+        ox = 0
+        oy = 0
+        if self.box:
+            ox = 1
+            oy = 1
+        # title
+        self.win.addstr(ox, oy, "Jobs %s %d %d-%d/%d" % (cfg["sjob"], self.cselect,
+            self.offset + 1, self.offset + self.display, self.count))
+
+        if self.box:
+            self.win.box("|", "-")
+        self.win.noutrefresh()
+        #self.pad.noutrefresh(self.offset, 0,
+        #    self.wy + oy + 1,
+        #    self.wx + ox,
+        #    self.wy + self.sy - oy - 1,
+        #    self.wx + self.sx - ox - 1)
+
+    def handle_key(self, c):
+        if c == ord('1'):
+            if "devselect" in cfg["jobs"]["filter"]:
+                cfg["jobs"]["filter"].remove("devselect")
+            else:
+                cfg["jobs"]["filter"].append("devselect")
+            return True
+        if c == ord("x"):
+            self.close = True
+            return True
+        return False
+# end filters
+
 
 # TODO get limits here
 def update_cache():
@@ -928,6 +962,10 @@ def main(stdscr):
         cfg["cols"] = cols
         update_cache()
 
+        for winwin in list(wl):
+            if wl[winwin].close:
+                del wl[winwin]
+
         if cfg["swin"] == None:
             cfg["swin"] = curses.newwin(3, cfg["cols"], 0, 0)
         cfg["swin"].erase()
@@ -998,9 +1036,10 @@ def main(stdscr):
             wl["devtypes"].fill(cache, cfg["lserver"], cfg)
             wl["devtypes"].show(cfg)
 
-        if cfg["wfilter"] != None:
-            display_filters()
-            cfg["wfilter"].noutrefresh()
+        if "filters" in wl:
+            wl["filters"].setup(cfg["cols"] - 8, cfg["rows"] - 8, 4, 4)
+            wl["filters"].fill(cache, cfg["lserver"], cfg)
+            wl["filters"].show(cfg)
 
         if cfg["wopt"] != None:
             global_options()
@@ -1012,6 +1051,9 @@ def main(stdscr):
         y += 1
         #msg = ""
         c = stdscr.getch()
+        if "filters" in wl:
+            if wl["filters"].handle_key(c):
+                c = -1
         if "devtypes" in wl:
             if wl["devtypes"].handle_key(c):
                 c = -1
@@ -1099,16 +1141,10 @@ def main(stdscr):
                 cmd = 0
                 msg = "Invalid subcomand %s" % curses.unctrl(c)
         elif c == ord('f'):
-            if cfg["wfilter"] == None:
-                cfg["wfilter"] = curses.newwin(cfg["rows"] - 8, cfg["cols"] - 8, 4, 4)
+            if "filters" not in wl:
+                wl["filters"] = win_filters()
             else:
-                cfg["wfilter"] = None
-        elif c == ord('1'):
-            if cfg["wfilter"] != None:
-                if "devselect" in cfg["jobs"]["filter"]:
-                    cfg["jobs"]["filter"].remove("devselect")
-                else:
-                    cfg["jobs"]["filter"].append("devselect")
+                del wl["filters"]
         elif c == ord('w'):
             # worker window
             cfg["workers"]["enable"] = not cfg["workers"]["enable"]

@@ -13,14 +13,7 @@ cfg["workers"]["enable"] = True
 cfg["workers"]["refresh"] = 60
 cfg["devices"] = {}
 cfg["devices"]["enable"] = True
-cfg["devices"]["count"] = 0
-cfg["devices"]["max"] = 0
-cfg["devices"]["redraw"] = False
 cfg["devices"]["refresh"] = 20
-cfg["devices"]["offset"] = 0
-# how many device are displayed
-cfg["devices"]["display"] = 0
-cfg["devices"]["select"] = []
 cfg["devices"]["sort"] = 0
 cfg["devtypes"] = {}
 cfg["devtypes"]["refresh"] = 60
@@ -122,9 +115,10 @@ def switch_lab(usefirst):
             cfg["lab"]["JOB_LENMAX"] = 5
         if not "USER_LENMAX" in lab:
             cfg["lab"]["USER_LENMAX"] = 10
-        cfg["devices"]["select"] = []
         if "workers" in wl:
             wl["workers"].select = None
+        if "devices" in wl:
+            wl["devices"].select = None
         cfg["swk"] = None
         cfg["sdev"] = None
         debug("Switched to %s\n" % new["name"])
@@ -149,6 +143,7 @@ class lava_win:
         self.offset = 0
         self.display = 0
         self.redraw = False
+        self.box = False
         # current selection
         self.cselect = 1
         self.select = None
@@ -171,6 +166,7 @@ class lava_win:
             debug("Create window %dx%d at %d,%d\n" % (sx, sy, wx, wy))
             self.win = curses.newwin(sy, sx, wy, wx)
             self.redraw = True
+            self.pad = None
 
     def fill(self, cache, lserver, cfg):
         return False
@@ -196,9 +192,6 @@ class win_devtypes(lava_win):
             x = 0
             self.count += 1
             self.pad.addstr(y, x, devtype["name"])
-            if cfg["lab"]["DEVTYPE_LENMAX"] < len(devtype["name"]):
-                cfg["lab"]["DEVTYPE_LENMAX"] = len(devtype["name"])
-                self.dt_time = 0
             x += cfg["lab"]["DEVTYPE_LENMAX"] + 1
             self.pad.addstr(y, x, "%d" % devtype["devices"])
             # TODO ? installed template
@@ -514,105 +507,164 @@ class win_workers(lava_win):
         return False
 # end of view worker  #
 
-def update_devices():
-    now = time.time()
-    y = -1
-    if cfg["dpad"] == None:
-        cfg["dpad"] = curses.newpad(100, cfg["cols"])
-    if not cache["device"]["redraw"]:
-        return
-    cache["device"]["redraw"] = False
-    cfg["dpad"].erase()
-    dlist = cache["device"]["dlist"]
-    #fdebug = open("alldevices", "w")
-    #yaml.dump(dlist, fdebug)
-    #fdebug.close()
-    di = 0
-    # sort by health
-    if cfg["devices"]["sort"] == 1:
-        nlist = []
-        for device in dlist:
-            if device["health"] == 'Bad':
-                nlist.append(device)
-        for device in dlist:
-            if device["health"] == 'Unknown':
-                nlist.append(device)
-        for device in dlist:
-            if device["health"] == 'Good':
-                nlist.append(device)
-        for device in dlist:
-            if device["health"] == 'Maintenance':
-                nlist.append(device)
-        for device in dlist:
-            if device["health"] == 'Retired':
-                nlist.append(device)
-        dlist = nlist
-    if cfg["devices"]["sort"] == 2:
-        nlist = []
-        for device in dlist:
-            if device["state"] == 'Running':
-                nlist.append(device)
-        for device in dlist:
-            if device["state"] == 'Idle':
-                nlist.append(device)
-        dlist = nlist
-    for device in dlist:
-        dname = device["hostname"]
-        if dname not in cache["device"]:
-            cache["device"][dname] = {}
-            cache["device"][dname]["time"] = 0
-        if now - cache["device"][dname]["time"] > cfg["devices"]["refresh"] * 10:
-            cache["device"][dname] = cfg["lserver"].scheduler.devices.show(dname)
-            cache["device"][dname]["time"] = time.time()
-        ddetail = cache["device"][dname]
+class win_devices(lava_win):
+    def fill(self, cache, lserver, cfg):
+        if self.pad == None:
+            # TODO chnage 100
+            self.pad = curses.newpad(100, self.sx)
+            self.redraw = True
+        if not self.redraw:
+            return
+        self.pad.erase()
+        self.win.erase()
+        dlist = cache["device"]["dlist"]
+        # sort by health
+        if cfg["devices"]["sort"] == 1:
+            nlist = []
+            for device in dlist:
+                if device["health"] == 'Bad':
+                    nlist.append(device)
+            for device in dlist:
+                if device["health"] == 'Unknown':
+                    nlist.append(device)
+            for device in dlist:
+                if device["health"] == 'Good':
+                    nlist.append(device)
+            for device in dlist:
+                if device["health"] == 'Maintenance':
+                    nlist.append(device)
+            for device in dlist:
+                if device["health"] == 'Retired':
+                    nlist.append(device)
+            dlist = nlist
+        if cfg["devices"]["sort"] == 2:
+            nlist = []
+            for device in dlist:
+                if device["state"] == 'Running':
+                    nlist.append(device)
+            for device in dlist:
+                if device["state"] == 'Idle':
+                    nlist.append(device)
+            dlist = nlist
 
-        if "workers" in wl and wl["workers"].select != None and ddetail["worker"] not in wl["workers"].select:
-            continue
-        x = 4
-        y += 1
-        di += 1
-        cfg["devices"]["count"] = di
-        if dname in cfg["devices"]["select"]:
-            cfg["dpad"].addstr(y, 0, "[x]")
-        else:
-            cfg["dpad"].addstr(y, 0, "[ ]")
-        if cfg["select"] == di and cfg["tab"] == 1:
-            cfg["dpad"].addstr(y, x, device["hostname"], curses.A_BOLD)
-            cfg["sdev"] = dname
-        else:
-            cfg["dpad"].addstr(y, x, device["hostname"])
-        if len(dname) > cfg["lab"]["DEVICENAME_LENMAX"]:
-            cfg["lab"]["DEVICENAME_LENMAX"] = len(dname)
-            cache["device"]["redraw"] = True
-        x += cfg["lab"]["DEVICENAME_LENMAX"] + 1
-        if device["health"] == 'Bad':
-            cfg["dpad"].addstr(y, x, device["health"], curses.color_pair(1))
-        elif device["health"] == 'Good':
-            cfg["dpad"].addstr(y, x, device["health"], curses.color_pair(2))
-        elif device["health"] == 'Maintenance':
-            cfg["dpad"].addstr(y, x, device["health"], curses.color_pair(3))
-        else:
-            cfg["dpad"].addstr(y, x, device["health"])
-        x += 12
-        if device["state"] == 'Running':
-            cfg["dpad"].addstr(y, x, device["state"], curses.color_pair(2))
-        elif device["state"] == 'Idle':
-            cfg["dpad"].addstr(y, x, device["state"], curses.color_pair(3))
-        else:
-            cfg["dpad"].addstr(y, x, device["state"])
-        x += 8
-        # TODO add color according to worker state
-        wkname = ddetail["worker"]
-        if cache["workers"]["detail"][wkname]["wdet"]["state"] == 'Offline':
-            cfg["dpad"].addstr(y, x, wkname, curses.color_pair(1))
-        elif cfg["tab"] == 0 and cfg["swk"] != None and wkname in cfg["swk"]:
-            cfg["dpad"].addstr(y, x, wkname, curses.A_BOLD)
-        else:
-            cfg["dpad"].addstr(y, x, wkname)
-        x += cfg["lab"]["WKNAME_LENMAX"]
-        if x > cfg["sc"]:
-            cfg["sc"] = x
-        #TODO current_job
+        if self.select == None:
+            self.select = []
+        di = 0
+        y = 0
+        for device in dlist:
+            dname = device["hostname"]
+            ddetail = cache["device"][dname]
+
+            if "workers" in wl and wl["workers"].select != None and ddetail["worker"] not in wl["workers"].select:
+                continue
+            x = 4
+            di += 1
+            self.count = di
+            if dname in self.select:
+                self.pad.addstr(y, 0, "[x]")
+            else:
+                self.pad.addstr(y, 0, "[ ]")
+            if self.cselect == di and cfg["tab"] == 1:
+                self.pad.addstr(y, x, device["hostname"], curses.A_BOLD)
+                cfg["sdev"] = dname
+            else:
+                self.pad.addstr(y, x, device["hostname"])
+            x += cfg["lab"]["DEVICENAME_LENMAX"] + 1
+            if device["health"] == 'Bad':
+                self.pad.addstr(y, x, device["health"], curses.color_pair(1))
+            elif device["health"] == 'Good':
+                self.pad.addstr(y, x, device["health"], curses.color_pair(2))
+            elif device["health"] == 'Maintenance':
+                self.pad.addstr(y, x, device["health"], curses.color_pair(3))
+            else:
+                self.pad.addstr(y, x, device["health"])
+            x += 12
+            if device["state"] == 'Running':
+                self.pad.addstr(y, x, device["state"], curses.color_pair(2))
+            elif device["state"] == 'Idle':
+                self.pad.addstr(y, x, device["state"], curses.color_pair(3))
+            else:
+                self.pad.addstr(y, x, device["state"])
+            x += 8
+            wkname = ddetail["worker"]
+            if cache["workers"]["detail"][wkname]["wdet"]["state"] == 'Offline':
+                self.pad.addstr(y, x, wkname, curses.color_pair(1))
+            elif cfg["tab"] == 0 and cfg["swk"] != None and wkname in cfg["swk"]:
+                self.pad.addstr(y, x, wkname, curses.A_BOLD)
+            else:
+                self.pad.addstr(y, x, wkname)
+            x += cfg["lab"]["WKNAME_LENMAX"]
+            if x > cfg["sc"]:
+                cfg["sc"] = x
+            #TODO current_job
+            y += 1
+        self.display = self.sy - 1
+        self.box = False
+        if self.box:
+            self.display -= 2
+        if self.display > self.count:
+            self.display = self.count
+    # show devices
+    def show(self, cfg):
+        ox = 0
+        oy = 0
+        if self.box:
+            ox = 1
+            oy = 1
+        # title
+        self.win.addstr(ox, oy, "Devices %d-%d/%d %d %s" % (
+            self.offset + 1, self.offset + self.display, self.count,
+            self.cselect,
+            cfg["sdev"]))
+
+        if self.box:
+            self.win.box("|", "-")
+        self.win.noutrefresh()
+        self.pad.noutrefresh(self.offset, 0,
+            self.wy + oy + 1,
+            self.wx + ox,
+            self.wy + self.sy - oy - 1,
+            self.wx + self.sx - ox - 1)
+
+    # handle key for devices
+    def handle_key(self, c):
+        h = False
+        # this window should handle UP DOWN = space PGUP PGDOWN
+        if c == curses.KEY_UP:
+            self.cselect -= 1
+            if self.cselect < 1:
+                self.cselect = 1
+            self.redraw = True
+            h = True
+        if c == curses.KEY_DOWN:
+            self.cselect += 1
+            if self.cselect > self.count:
+                self.cselect = self.count
+            self.redraw = True
+            h = True
+        if c == ord("="):
+            self.select = []
+            self.select.append(cfg["sdev"])
+            self.redraw = True
+            if "joblist" in wl:
+                wl["joblist"].redraw = True
+            return True
+        if c == ord(" "):
+            if cfg["sdev"] in self.select:
+                self.select.remove(cfg["sdev"])
+            else:
+                self.select.append(cfg["sdev"])
+            self.redraw = True
+            if "joblist" in wl:
+                wl["joblist"].redraw = True
+            return True
+        # select go out of view
+        if self.cselect > self.display + self.offset:
+            self.offset += 1
+        if self.cselect <= self.offset and self.offset > 0:
+            self.offset -= 1
+        return h
+# end of devices  #
 
 class win_jobs(lava_win):
     def fill(self, cache, lserver, cfg):
@@ -636,7 +688,7 @@ class win_jobs(lava_win):
             if "devselect" in cfg["jobs"]["filter"]:
                 if "actual_device" not in job:
                     continue
-                if job["actual_device"] not in cfg["devices"]["select"]:
+                if job["actual_device"] not in wl["devices"].select:
                     continue
             x = 0
             ji += 1
@@ -673,6 +725,8 @@ class win_jobs(lava_win):
             if cfg["jobs"]["title"]:
                 if cfg["jobs"]["titletrunc"]:
                     spaces = self.sx - x - 2
+                    #if spaces > len(job["description"]):
+                    #    spaces = len(job["description"])
                     self.pad.addstr(y, x, job["description"][:spaces])
                     y += 1
                 else:
@@ -680,25 +734,25 @@ class win_jobs(lava_win):
                     y += 2
             else:
                 y += 1
-        decorative = True
+        self.box = True
         self.display = self.sy - 1
-        if decorative:
+        if self.box:
             self.display -= 2
         if self.display > self.count:
             self.display = self.count
 
     def show(self, cfg):
         decorative = True
-        x = 0
-        y = 0
-        if decorative:
-            x = 1
-            y = 1
+        ox = 0
+        oy = 0
+        if self.box:
+            ox = 1
+            oy = 1
         # title
-        self.win.addstr(x, y, "Jobs %s %d %d-%d/%d" % (cfg["sjob"], self.cselect,
+        self.win.addstr(ox, oy, "Jobs %s %d %d-%d/%d" % (cfg["sjob"], self.cselect,
             self.offset + 1, self.offset + self.display, self.count))
 
-        if decorative:
+        if self.box:
             self.win.box("|", "-")
         self.win.noutrefresh()
         #debug("Pad to %dx%d %dx%d screen=%dx%d\n" % (
@@ -707,10 +761,10 @@ class win_jobs(lava_win):
         #    cfg["cols"], cfg["rows"]
         #    ))
         self.pad.noutrefresh(self.offset, 0,
-            self.wy + y + 1,
-            self.wx + x,
-            self.wy + self.sy - y - 1,
-            self.wx + self.sx - x - 1)
+            self.wy + oy + 1,
+            self.wx + ox,
+            self.wy + self.sy - oy - 1,
+            self.wx + self.sx - ox - 1)
 
     def handle_key(self, c):
         h = False
@@ -746,24 +800,6 @@ class win_jobs(lava_win):
             self.offset -= 1
         return h
 # end of view worker  #
-
-def check_limits():
-    if cfg["select"] < 1:
-        cfg["select"] = 1
-    # verify limits for devices
-    if cfg["tab"] == 1:
-        # check offset
-        if cfg["devices"]["offset"] > cfg["devices"]["count"] - cfg["devices"]["display"]:
-            cfg["devices"]["offset"] = cfg["devices"]["count"] - cfg["devices"]["display"]
-        # check select
-        if cfg["select"] > cfg["devices"]["count"]:
-            cfg["select"] = cfg["devices"]["count"]
-        if cfg["select"] <= cfg["devices"]["offset"] and cfg["devices"]["offset"] > 0:
-            cfg["devices"]["offset"] -= 1
-            cache["device"]["redraw"] = True
-        if cfg["select"] > cfg["devices"]["offset"] + cfg["devices"]["display"]:
-            cfg["devices"]["offset"] += 1
-            cache["device"]["redraw"] = True
 
 def global_options():
     cfg["wopt"].box("|", "-")
@@ -812,6 +848,16 @@ def update_cache():
         cache["device"]["dlist"] = cfg["lserver"].scheduler.devices.list(True, True)
         cache["device"]["time"] = time.time()
         cache["device"]["redraw"] = True
+    for device in cache["device"]["dlist"]:
+        dname = device["hostname"]
+        if dname not in cache["device"]:
+            cache["device"][dname] = {}
+            cache["device"][dname]["time"] = 0
+        if now - cache["device"][dname]["time"] > cfg["devices"]["refresh"] * 10:
+            cache["device"][dname] = cfg["lserver"].scheduler.devices.show(dname)
+            cache["device"][dname]["time"] = time.time()
+        if len(dname) > cfg["lab"]["DEVICENAME_LENMAX"]:
+            cfg["lab"]["DEVICENAME_LENMAX"] = len(dname)
     if not "workers" in cache:
         cache["workers"] = {}
         cache["workers"]["detail"] = {}
@@ -850,6 +896,9 @@ def update_cache():
     if now - cache["devtypes"]["time"] > cfg["devtypes"]["refresh"]:
         cache["devtypes"]["dlist"] = cfg["lserver"].scheduler.device_types.list()
         cache["devtypes"]["time"] = time.time()
+    for devtype in cache["devtypes"]["dlist"]:
+        if cfg["lab"]["DEVTYPE_LENMAX"] < len(devtype["name"]):
+            cfg["lab"]["DEVTYPE_LENMAX"] = len(devtype["name"])
 
 def main(stdscr):
     # Clear screen
@@ -896,34 +945,24 @@ def main(stdscr):
         if cfg["workers"]["enable"]:
             if not "workers" in wl:
                 wl["workers"] = win_workers()
-            wl["workers"].setup(cfg["lab"]["WKNAME_LENMAX"] + 21, 100, 0, y)
+            # TODO the + 30 is for cleaning
+            wl["workers"].setup(cfg["lab"]["WKNAME_LENMAX"] + 21 + 30, 100, 0, y)
             wl["workers"].fill(cache, cfg["lserver"], cfg)
             wl["workers"].show(cfg)
             y += wl["workers"].display + 2
 
         # devices
         if cfg["devices"]["enable"]:
-            update_devices()
+            if not "devices" in wl:
+                wl["devices"] = win_devices()
             if cfg["jobs"]["enable"] and cfg["jobs"]["where"] == 1:
                 y_max = rows - 15
             else:
-                y_max = rows - 1
-            cfg["devices"]["display"] = y_max - y
-            if cfg["devices"]["display"] > cfg["devices"]["count"]:
-                cfg["devices"]["display"] = cfg["devices"]["count"]
-            stdscr.addstr(y, 0, "Devices %d-%d/%d (refresh %d/%d)" %
-                (
-                cfg["devices"]["offset"] + 1,
-                cfg["devices"]["display"] + cfg["devices"]["offset"],
-                cfg["devices"]["count"],
-                now - cache["device"]["time"],
-                cfg["devices"]["refresh"]
-                ))
-            y += 1
-            #verify that select is printable
-            check_limits()
-            cfg["dpad"].noutrefresh(cfg["devices"]["offset"], 0, y, 0, y_max, cols - 1)
-            y += cfg["devices"]["display"] + 1
+                y_max = rows
+            wl["devices"].setup(cfg["cols"] - 1, y_max - y, 0, y)
+            wl["devices"].fill(cache, cfg["lserver"], cfg)
+            wl["devices"].show(cfg)
+            y += wl["devices"].display + 2
 
         if cfg["sc"] > cfg["cols"] - 65 and cfg["jobs"]["where"] == 0:
             # too small, cannot print jobs on right
@@ -935,12 +974,15 @@ def main(stdscr):
                 wl["joblist"] = win_jobs()
             if cfg["jobs"]["where"] == 0:
                 # setup on "second column"
-                wl["joblist"].setup(cfg["cols"] - cfg["sc"] - 1, cfg["rows"] - 4, cfg["sc"], 3)
+                wl["joblist"].setup(cfg["cols"] - cfg["sc"]  - 1, cfg["rows"] - 3, cfg["sc"], 3)
+                wl["joblist"].fill(cache, cfg["lserver"], cfg)
+                wl["joblist"].show(cfg)
             else:
                 # setup on bottom
-                wl["joblist"].setup(cfg["cols"], rows - y - 1, 0, y)
-            wl["joblist"].fill(cache, cfg["lserver"], cfg)
-            wl["joblist"].show(cfg)
+                if rows -y - 1 > 0:
+                    wl["joblist"].setup(cfg["cols"], rows - y, 0, y)
+                    wl["joblist"].fill(cache, cfg["lserver"], cfg)
+                    wl["joblist"].show(cfg)
 
         stdscr.noutrefresh()
 
@@ -980,49 +1022,10 @@ def main(stdscr):
         if c > 0 and "joblist" in wl and cfg["tab"] == 2:
             if wl["joblist"].handle_key(c):
                 c = -1
-        if c == curses.KEY_UP:
-            cfg["select"] -= 1
-            if cfg["tab"] == 1:
-                cache["device"]["redraw"] = True
-                if "joblist" in wl:
-                    wl["joblist"].redraw = True
-        elif c == curses.KEY_DOWN:
-            cfg["select"] += 1
-            if cfg["tab"] == 1:
-                cache["device"]["redraw"] = True
-                if "joblist" in wl:
-                    wl["joblist"].redraw = True
-        elif c == curses.KEY_PPAGE:
-            if cfg["tab"] == 1:
-                #scroll devices
-                cfg["devices"]["offset"] -= 5
-                cache["device"]["redraw"] = True
-                if cfg["devices"]["offset"] < 0:
-                    cfg["devices"]["offset"] = 0
-                # the select could has been hidden
-                if cfg["select"] > cfg["devices"]["offset"] + cfg["devices"]["display"]:
-                    cfg["select"] = cfg["devices"]["offset"] + cfg["devices"]["display"]
-        elif c == curses.KEY_NPAGE:
-            if cfg["tab"] == 1:
-                #scroll devices
-                cfg["devices"]["offset"] += 5
-                cache["device"]["redraw"] = True
-                if cfg["devices"]["offset"] > cfg["devices"]["count"] - cfg["devices"]["display"]:
-                    cfg["devices"]["offset"] = cfg["devices"]["count"] - cfg["devices"]["display"]
-                # the select could has been hidden
-                if cfg["select"] < cfg["devices"]["offset"]:
-                    cfg["select"] = cfg["devices"]["offset"]
-        elif c == ord(" "):
-            if cfg["tab"] == 1:
-                if cfg["sdev"] in cfg["devices"]["select"]:
-                    cfg["devices"]["select"].remove(cfg["sdev"])
-                else:
-                    cfg["devices"]["select"].append(cfg["sdev"])
-                cache["device"]["redraw"] = True
-                if "devselect" in cfg["jobs"]["filter"]:
-                    if "joblist" in wl:
-                        wl["joblist"].redraw = True
-        elif c == curses.KEY_F1:
+        if c > 0 and "devices" in wl and cfg["tab"] == 1:
+            if wl["devices"].handle_key(c):
+                c = -1
+        if c == curses.KEY_F1:
             if "devtypes" in wl:
                 del wl["devtypes"]
             else:
@@ -1031,13 +1034,15 @@ def main(stdscr):
             # TAB
             if cfg["tab"] == 0:
                 cfg["tab"] = 1
-                cache["device"]["redraw"] = True
+                if "devices" in wl:
+                    wl["devices"].redraw = True
                 if "workers" in wl:
                     wl["workers"].redraw = True
                 msg = "Switched to devices tab"
             elif cfg["tab"] == 1:
                 cfg["tab"] = 2
-                cache["device"]["redraw"] = True
+                if "devices" in wl:
+                    wl["devices"].redraw = True
                 if "joblist" in wl:
                     wl["joblist"].redraw = True
                 msg = "Switched to jobs tab"
@@ -1073,15 +1078,18 @@ def main(stdscr):
                 if c == ord('n'):
                     msg = "Sort by name"
                     cfg["devices"]["sort"] = 0
-                    cache["device"]["redraw"] = True
+                    if "devices" in wl:
+                        wl["devices"].redraw = True
                 elif c == ord('h'):
                     msg = "Sort by health"
                     cfg["devices"]["sort"] = 1
-                    cache["device"]["redraw"] = True
+                    if "devices" in wl:
+                        wl["devices"].redraw = True
                 elif c == ord('s'):
                     msg = "Sort by state"
                     cfg["devices"]["sort"] = 2
-                    cache["device"]["redraw"] = True
+                    if "devices" in wl:
+                        wl["devices"].redraw = True
                 else:
                     cmd = 0
                     msg = "Invalid sort"
@@ -1173,7 +1181,6 @@ def main(stdscr):
                 cfg["wopt"] = None
             else:
                 exit = True
-        check_limits()
     # this is exit
     if cfg["debug"] != None:
         cfg["debug"].close()

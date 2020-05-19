@@ -668,7 +668,7 @@ class win_jobs(lava_win):
                     self.pad.addstr(y, x, job["actual_device"])
             else:
                 # print the device type instead
-                self;pad.addstr(y, x, job["device_type"])
+                self.pad.addstr(y, x, job["device_type"])
             x += cfg["lab"]["DEVICENAME_LENMAX"]
             if cfg["jobs"]["title"]:
                 if cfg["jobs"]["titletrunc"]:

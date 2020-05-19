@@ -834,6 +834,8 @@ def display_filters():
     cfg["wfilter"].addstr(2, 2, "Devices filter")
     if "devselect" in cfg["jobs"]["filter"]:
         cfg["wfilter"].addstr(3, 2, "1 [x] Filter jobs from selected devices")
+        if "joblist" in wl:
+            wl["joblist"].redraw = True
     else:
         cfg["wfilter"].addstr(3, 2, "1 [ ] Filter jobs from selected devices")
     cfg["wfilter"].addstr(20, 2, "Jobs filter")

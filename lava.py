@@ -883,7 +883,8 @@ def update_cache():
     if now - cache["device"]["time"] > cfg["devices"]["refresh"]:
         cache["device"]["dlist"] = cfg["lserver"].scheduler.devices.list(True, True)
         cache["device"]["time"] = time.time()
-        cache["device"]["redraw"] = True
+        if "devices" in wl:
+            wl["devices"].redraw = True
     for device in cache["device"]["dlist"]:
         dname = device["hostname"]
         if dname not in cache["device"]:
@@ -892,6 +893,8 @@ def update_cache():
         if now - cache["device"][dname]["time"] > cfg["devices"]["refresh"] * 10:
             cache["device"][dname] = cfg["lserver"].scheduler.devices.show(dname)
             cache["device"][dname]["time"] = time.time()
+            if "devices" in wl:
+                wl["devices"].redraw = True
         if len(dname) > cfg["lab"]["DEVICENAME_LENMAX"]:
             cfg["lab"]["DEVICENAME_LENMAX"] = len(dname)
     if not "workers" in cache:
@@ -901,6 +904,8 @@ def update_cache():
     if now - cache["workers"]["time"] > cfg["workers"]["refresh"]:
         cache["workers"]["wlist"] = cfg["lserver"].scheduler.workers.list()
         cache["workers"]["time"] = time.time()
+        if "workers" in wl:
+            wl["workers"].redraw = True
     for worker in cache["workers"]["wlist"]:
         #debug("Refresh %s\n" % worker)
         if len(worker) > cfg["lab"]["WKNAME_LENMAX"]:
@@ -910,8 +915,10 @@ def update_cache():
             cache["workers"]["detail"][worker] = {}
             cache["workers"]["detail"][worker]["time"] = 0
         if now - cache["workers"]["detail"][worker]["time"] > 10:
-            cache["workers"]["detail"][worker]["time"] = time.time()
             cache["workers"]["detail"][worker]["wdet"] = cfg["lserver"].scheduler.workers.show(worker)
+            cache["workers"]["detail"][worker]["time"] = time.time()
+            if "workers" in wl:
+                wl["workers"].redraw = True
     offset = 0
     if "jobs" not in cache:
         cache["jobs"] = {}
@@ -919,7 +926,8 @@ def update_cache():
     if now - cache["jobs"]["time"] > cfg["jobs"]["refresh"]:
         cache["jobs"]["jlist"] = cfg["lserver"].scheduler.jobs.list(None, None, offset, 100, None, True)
         cache["jobs"]["time"] = time.time()
-        cache["jobs"]["redraw"] = True
+        if "joblist" in wl:
+            wl["joblist"].redraw = True
     for job in cache["jobs"]["jlist"]:
         jobid = str(job["id"])
         if len(jobid) > cfg["lab"]["JOB_LENMAX"]:

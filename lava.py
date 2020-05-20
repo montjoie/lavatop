@@ -39,9 +39,6 @@ cfg["lab"] = None
 # the status window
 cfg["swin"] = None
 
-# global options
-cfg["wopt"] = None
-
 #second colum start
 cfg["sc"] = 0
 
@@ -800,33 +797,62 @@ class win_jobs(lava_win):
         return h
 # end of view worker  #
 
-def global_options():
-    cfg["wopt"].box("|", "-")
-    if cfg["workers"]["enable"]:
-        cfg["wopt"].addstr(2, 2, "[x] show [w]orkers tab")
-    else:
-        cfg["wopt"].addstr(2, 2, "[ ] show [w]orkers tab")
-    if cfg["devices"]["enable"]:
-        cfg["wopt"].addstr(3, 2, "[x] show [d]evices tab")
-    else:
-        cfg["wopt"].addstr(3, 2, "[ ] show [d]evices tab")
-    if cfg["jobs"]["enable"]:
-        cfg["wopt"].addstr(4, 2, "[x] show jobs tab")
-    else:
-        cfg["wopt"].addstr(4, 2, "[ ] show jobs tab")
-    if cfg["jobs"]["where"] == 1:
-        cfg["wopt"].addstr(5, 2, "[ ] display jobs on the right")
-    else:
-        cfg["wopt"].addstr(5, 2, "[x] display jobs on the right")
-    if cfg["jobs"]["title"]:
-        cfg["wopt"].addstr(6, 2, "[x] display job [t]itle")
-    else:
-        cfg["wopt"].addstr(6, 2, "[ ] display job [t]itle")
-    if cfg["jobs"]["titletrunc"]:
-        cfg["wopt"].addstr(7, 2, "[x] [T]runcate job title")
-    else:
-        cfg["wopt"].addstr(7, 2, "[ ] [T]runcate job title")
-    cfg["wopt"].addstr(2, 30, "DEVICENAME_LENMAX: %d" % cfg["lab"]["DEVICENAME_LENMAX"])
+class win_options(lava_win):
+    def fill(self, cache, lserver, cfg):
+        self.win.erase()
+        if cfg["workers"]["enable"]:
+            self.win.addstr(2, 2, "[x] show [w]orkers tab")
+        else:
+            self.win.addstr(2, 2, "[ ] show [w]orkers tab")
+        if cfg["devices"]["enable"]:
+            self.win.addstr(3, 2, "[x] show [d]evices tab")
+        else:
+            self.win.addstr(3, 2, "[ ] show [d]evices tab")
+        if cfg["jobs"]["enable"]:
+            self.win.addstr(4, 2, "[x] show jobs tab")
+        else:
+            self.win.addstr(4, 2, "[ ] show jobs tab")
+        if cfg["jobs"]["where"] == 1:
+            self.win.addstr(5, 2, "[ ] display jobs on the right")
+        else:
+            self.win.addstr(5, 2, "[x] display jobs on the right")
+        if cfg["jobs"]["title"]:
+            self.win.addstr(6, 2, "[x] display job [t]itle")
+        else:
+            self.win.addstr(6, 2, "[ ] display job [t]itle")
+        if cfg["jobs"]["titletrunc"]:
+            self.win.addstr(7, 2, "[x] [T]runcate job title")
+        else:
+            self.win.addstr(7, 2, "[ ] [T]runcate job title")
+        self.win.addstr(2, 30, "DEVICENAME_LENMAX: %d" % cfg["lab"]["DEVICENAME_LENMAX"])
+
+    def show(self, cfg):
+        self.box = True
+        ox = 0
+        oy = 0
+        if self.box:
+            ox = 1
+            oy = 1
+        # title
+        self.win.addstr(ox, oy, "Jobs %s %d %d-%d/%d" % (cfg["sjob"], self.cselect,
+            self.offset + 1, self.offset + self.display, self.count))
+
+        if self.box:
+            self.win.box("|", "-")
+        self.win.noutrefresh()
+
+    def handle_key(self, c):
+        if c == ord('1'):
+            if "devselect" in cfg["jobs"]["filter"]:
+                cfg["jobs"]["filter"].remove("devselect")
+            else:
+                cfg["jobs"]["filter"].append("devselect")
+            return True
+        if c == ord("x"):
+            self.close = True
+            return True
+        return False
+# end option
 
 class win_filters(lava_win):
     def fill(self, cache, lserver, cfg):
@@ -1049,9 +1075,10 @@ def main(stdscr):
             wl["filters"].fill(cache, cfg["lserver"], cfg)
             wl["filters"].show(cfg)
 
-        if cfg["wopt"] != None:
-            global_options()
-            cfg["wopt"].noutrefresh()
+        if "options" in wl:
+            wl["options"].setup(cfg["cols"] - 8, cfg["rows"] - 8, 4, 4)
+            wl["options"].fill(cache, cfg["lserver"], cfg)
+            wl["options"].show(cfg)
 
         curses.doupdate()
 
@@ -1059,6 +1086,9 @@ def main(stdscr):
         y += 1
         #msg = ""
         c = stdscr.getch()
+        if "options" in wl:
+            if wl["options"].handle_key(c):
+                c = -1
         if "filters" in wl:
             if wl["filters"].handle_key(c):
                 c = -1
@@ -1164,10 +1194,10 @@ def main(stdscr):
             cfg["jobs"]["enable"] = not cfg["jobs"]["enable"]
             msg = "Windows jobs"
         elif c == ord('O') or c == ord('o'):
-            if cfg["wopt"] == None:
-                cfg["wopt"] = curses.newwin(cfg["rows"] - 8, cfg["cols"] - 8, 4, 4)
+            if "options" not in wl:
+                wl["options"] = win_options()
             else:
-                cfg["wopt"] = None
+                del wl["options"]
         elif c == ord('l'):
             # lab switch
             cmd = c
@@ -1181,9 +1211,7 @@ def main(stdscr):
                 cmd = 0
         elif c == ord('x'):
             # close
-            if cfg["wopt"] != None:
-                cfg["wopt"] = None
-            elif "devtypes" in wl:
+            if "devtypes" in wl:
                 del wl["devtypes"]
             elif "viewjob" in wl:
                 del wl["viewjob"]
@@ -1223,9 +1251,6 @@ def main(stdscr):
         if cfg["tab"] == 0 and not cfg["workers"]["enable"]:
             cfg["tab"] = 1
         if c == 27 or c == ord('q'):
-            if cfg["wopt"] != None:
-                cfg["wopt"] = None
-            else:
                 exit = True
     # this is exit
     if cfg["debug"] != None:

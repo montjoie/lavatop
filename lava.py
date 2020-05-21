@@ -25,6 +25,7 @@ cfg["jobs"]["where"] = 0
 cfg["jobs"]["title"] = True
 cfg["jobs"]["titletrunc"] = True
 cfg["jobs"]["filter"] = []
+cfg["jobs"]["maxfetch"] = 200
 
 cfg["tab"] = 0
 cfg["select"] = 1
@@ -671,12 +672,13 @@ class win_jobs(lava_win):
             else:
                 w = cfg["cols"] - cfg["sc"] - 2
             debug("Create jobpad w=%d\n" % w)
-            self.pad = curses.newpad(210, w)
+            self.pad = curses.newpad(cfg["jobs"]["maxfetch"] * 2, w)
             self.redraw = True
         ji = 0
         if not self.redraw:
             return
         self.redraw = False
+        self.win.erase()
         self.pad.erase()
         jlist = cache["jobs"]["jlist"]
         for job in jlist:
@@ -785,8 +787,10 @@ class win_jobs(lava_win):
             h = True
         if c == curses.KEY_NPAGE:
             self.offset += 20
-            if self.offset > self.sy - self.display:
-                self.offset = self.sy - self.display
+            if self.offset > self.count - self.display:
+                self.offset = self.count - self.display
+            if self.cselect < self.offset:
+                self.cselect = self.offset
             self.redraw = True
             h = True
         # select go out of view
@@ -825,6 +829,7 @@ class win_options(lava_win):
         else:
             self.win.addstr(7, 2, "[ ] [T]runcate job title")
         self.win.addstr(2, 30, "DEVICENAME_LENMAX: %d" % cfg["lab"]["DEVICENAME_LENMAX"])
+        self.win.addstr(3, 30, "Job fetch max: %d" % cfg["jobs"]["maxfetch"])
 
     def show(self, cfg):
         self.box = True
@@ -842,6 +847,20 @@ class win_options(lava_win):
         self.win.noutrefresh()
 
     def handle_key(self, c):
+        if c == ord('+'):
+            cfg["jobs"]["maxfetch"] += 100
+            if "joblist" in wl:
+                wl["joblist"].pad = None
+                wl["joblist"].redraw = True
+            return True
+        if c == ord('-'):
+            cfg["jobs"]["maxfetch"] += 100
+            if cfg["jobs"]["maxfetch"] < 100:
+                cfg["jobs"]["maxfetch"] = 100
+            if "joblist" in wl:
+                wl["joblist"].pad = None
+                wl["joblist"].redraw = True
+            return True
         if c == ord('1'):
             if "devselect" in cfg["jobs"]["filter"]:
                 cfg["jobs"]["filter"].remove("devselect")
@@ -945,12 +964,17 @@ def update_cache():
             cache["workers"]["detail"][worker]["time"] = time.time()
             if "workers" in wl:
                 wl["workers"].redraw = True
-    offset = 0
     if "jobs" not in cache:
         cache["jobs"] = {}
         cache["jobs"]["time"] = 0
     if now - cache["jobs"]["time"] > cfg["jobs"]["refresh"]:
-        cache["jobs"]["jlist"] = cfg["lserver"].scheduler.jobs.list(None, None, offset, 100, None, True)
+        offset = 0
+        cache["jobs"]["jlist"] = []
+        while offset < cfg["jobs"]["maxfetch"]:
+            l = cfg["lserver"].scheduler.jobs.list(None, None, offset, 100, None, True)
+            #debug("Job load %d\n" % offset)
+            cache["jobs"]["jlist"] += l
+            offset += 100
         cache["jobs"]["time"] = time.time()
         if "joblist" in wl:
             wl["joblist"].redraw = True

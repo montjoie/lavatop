@@ -582,7 +582,7 @@ class win_devices(lava_win):
                 self.pad.addstr(y, x, device["state"], curses.color_pair(3))
             else:
                 self.pad.addstr(y, x, device["state"])
-            x += 8
+            x += 9
             wkname = ddetail["worker"]
             if cache["workers"]["detail"][wkname]["wdet"]["state"] == 'Offline':
                 self.pad.addstr(y, x, wkname, curses.color_pair(1))
@@ -633,12 +633,16 @@ class win_devices(lava_win):
                 self.cselect = 1
             self.redraw = True
             h = True
+            if "joblist" in wl:
+                wl["joblist"].redraw = True
         if c == curses.KEY_DOWN:
             self.cselect += 1
             if self.cselect > self.count:
                 self.cselect = self.count
             self.redraw = True
             h = True
+            if "joblist" in wl:
+                wl["joblist"].redraw = True
         if c == ord("="):
             self.select = []
             self.select.append(cfg["sdev"])
@@ -984,6 +988,7 @@ def update_cache():
             cfg["lab"]["JOB_LENMAX"] = len(jobid) + 1
         if len(job["submitter"]) > cfg["lab"]["USER_LENMAX"]:
             cfg["lab"]["USER_LENMAX"] = len(job["submitter"])
+
     if not "devtypes" in cache:
         cache["devtypes"] = {}
         cache["devtypes"]["time"] = 0

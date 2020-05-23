@@ -3,6 +3,7 @@
 import curses
 from curses import wrapper
 import xmlrpc.client
+import threading
 import time
 import yaml
 
@@ -44,6 +45,14 @@ cfg["swin"] = None
 cfg["sc"] = 0
 
 wl = {}
+
+lock = {}
+lock["jobs"] = threading.Lock()
+lock["workers"] = threading.Lock()
+lock["devices"] = threading.Lock()
+lock["device_types"] = threading.Lock()
+lock["cache"] = threading.Lock()
+state = 0
 
 cfg["debug"] = None
 cfg["debug"] = open("debug.log", 'w')
@@ -97,6 +106,10 @@ def switch_lab(usefirst):
         if cfg["lab"] != None and cfg["lab"]["name"] == new["name"]:
             return "already this lab"
         #real switch
+        lock["cache"].acquire
+        lock["workers"].acquire
+        lock["devices"].acquire
+        lock["jobs"].acquire
         cfg["lab"] = new
         LAVAURI = new["lavauri"]
         cfg["lserver"] = xmlrpc.client.ServerProxy(LAVAURI, allow_none=True)
@@ -118,6 +131,10 @@ def switch_lab(usefirst):
         cfg["swk"] = None
         cfg["sdev"] = None
         debug("Switched to %s\n" % new["name"])
+        lock["workers"].acquire
+        lock["devices"].acquire
+        lock["jobs"].acquire
+        lock["cache"].release
         return "Switched to %s" % new["name"]
     return "switch error"
 
@@ -144,10 +161,6 @@ class lava_win:
         # current selection
         self.cselect = 1
         self.select = None
-        # for cache
-        self.dt_time = 0
-        self.d_time = 0
-        self.wtime = 0
 
     def setup(self, sx, sy, wx, wy):
         # recreate window if size change
@@ -175,16 +188,18 @@ class win_devtypes(lava_win):
     def fill(self, cache, lserver, cfg):
         if self.pad == None:
             self.pad = curses.newpad(100, 200)
+        if not "devtypes" in cache:
+            return
         # check need of redraw
-        if not self.redraw and self.dt_time == cache["devtypes"]["time"]:
+        if not self.redraw:
             return
 
+        lock["device_types"].acquire()
         self.win.erase()
         self.pad.erase()
         self.redraw = False
         self.count = 0
         y = 1
-        self.dt_time = cache["devtypes"]["time"]
         for devtype in cache["devtypes"]["dlist"]:
             x = 0
             self.count += 1
@@ -219,6 +234,7 @@ class win_devtypes(lava_win):
             if dc > 0:
                 self.pad.addstr(y, x, "%d" % dc)
             y += 1
+        lock["device_types"].release()
         # decoration: 2, title 1
         self.display = self.sy - 2 - 1
         if self.display > self.count:
@@ -408,6 +424,12 @@ class win_view_job(lava_win):
 
 class win_workers(lava_win):
     def fill(self, cache, lserver, cfg):
+        if "workers" not in cache or "wlist" not in cache["workers"]:
+            self.win.erase()
+            self.win.addstr(1, 1, "Loading")
+            return
+        if not lock["workers"].acquire(False):
+            return
         y = 0
         wmax = len(cache["workers"]["wlist"])
         # if the number of worker changed, recreate window
@@ -417,6 +439,7 @@ class win_workers(lava_win):
             self.pad = curses.newpad(wmax + 1, 200)
             self.redraw = True
         if not self.redraw:
+            lock["workers"].release()
             return
         self.redraw = False
         self.win.erase()
@@ -457,6 +480,7 @@ class win_workers(lava_win):
             if "version" in wdet and wdet["version"] != None:
                 self.pad.addstr(y, x, wdet["version"])
             y += 1
+        lock["workers"].release()
         # TODO job_limit:
         # TODO last_ping:
         self.display = self.count
@@ -467,9 +491,10 @@ class win_workers(lava_win):
 
         #self.win.box("|", "-")
         self.win.noutrefresh()
-        self.pad.noutrefresh(self.offset, 0, self.wy + 1, self.wx,
-            self.wy + self.sy,
-            self.wx + self.sx)
+        if self.pad != None:
+            self.pad.noutrefresh(self.offset, 0, self.wy + 1, self.wx,
+                self.wy + self.sy,
+                self.wx + self.sx)
 
     def handle_key(self, c):
         # this window should handle UP DOWN = space
@@ -512,6 +537,17 @@ class win_devices(lava_win):
             self.redraw = True
         if not self.redraw:
             return
+        if "device" not in cache or "dlist" not in cache["device"]:
+            self.win.erase()
+            self.pad.addstr(2, 2, "Loading")
+            return
+        if "workers" not in cache:
+            self.win.erase()
+            self.pad.addstr(2, 2, "Loading")
+            return
+        if not lock["workers"].acquire(False):
+            return
+        lock["devices"].acquire()
         self.pad.erase()
         self.win.erase()
         dlist = cache["device"]["dlist"]
@@ -595,6 +631,8 @@ class win_devices(lava_win):
                 cfg["sc"] = x
             #TODO current_job
             y += 1
+        lock["workers"].release()
+        lock["devices"].release()
         self.display = self.sy - 1
         self.box = False
         if self.box:
@@ -679,7 +717,14 @@ class win_jobs(lava_win):
             self.pad = curses.newpad(cfg["jobs"]["maxfetch"] * 2, w)
             self.redraw = True
         ji = 0
+        if not "jobs" in cache or not "jlist" in cache["jobs"]:
+            self.pad.erase()
+            self.win.erase()
+            self.pad.addstr(1, 1, "Loading")
+            return
         if not self.redraw:
+            return
+        if not lock["jobs"].acquire(False):
             return
         self.redraw = False
         self.win.erase()
@@ -736,6 +781,7 @@ class win_jobs(lava_win):
                     y += 2
             else:
                 y += 1
+        lock["jobs"].release()
         self.box = True
         self.display = self.sy - 1
         if self.box:
@@ -925,7 +971,11 @@ class win_filters(lava_win):
 
 # TODO get limits here
 def update_cache():
+    global state
     now = time.time()
+
+    lock["devices"].acquire()
+    state = 1
     if not "device" in cache:
         cache["device"] = {}
         cache["device"]["time"] = 0
@@ -946,6 +996,10 @@ def update_cache():
                 wl["devices"].redraw = True
         if len(dname) > cfg["lab"]["DEVICENAME_LENMAX"]:
             cfg["lab"]["DEVICENAME_LENMAX"] = len(dname)
+    lock["devices"].release()
+
+    lock["workers"].acquire()
+    state = 2
     if not "workers" in cache:
         cache["workers"] = {}
         cache["workers"]["detail"] = {}
@@ -968,18 +1022,25 @@ def update_cache():
             cache["workers"]["detail"][worker]["time"] = time.time()
             if "workers" in wl:
                 wl["workers"].redraw = True
+    lock["workers"].release()
+
+    state = 3
     if "jobs" not in cache:
         cache["jobs"] = {}
         cache["jobs"]["time"] = 0
+        cache["jobs"]["jlist"] = []
     if now - cache["jobs"]["time"] > cfg["jobs"]["refresh"]:
         offset = 0
-        cache["jobs"]["jlist"] = []
+        fl = []
         while offset < cfg["jobs"]["maxfetch"]:
             l = cfg["lserver"].scheduler.jobs.list(None, None, offset, 100, None, True)
             #debug("Job load %d\n" % offset)
-            cache["jobs"]["jlist"] += l
+            fl += l
             offset += 100
+        lock["jobs"].acquire()
+        cache["jobs"]["jlist"] = fl
         cache["jobs"]["time"] = time.time()
+        lock["jobs"].release()
         if "joblist" in wl:
             wl["joblist"].redraw = True
     for job in cache["jobs"]["jlist"]:
@@ -992,12 +1053,23 @@ def update_cache():
     if not "devtypes" in cache:
         cache["devtypes"] = {}
         cache["devtypes"]["time"] = 0
+    lock["device_types"].acquire()
     if now - cache["devtypes"]["time"] > cfg["devtypes"]["refresh"]:
         cache["devtypes"]["dlist"] = cfg["lserver"].scheduler.device_types.list()
         cache["devtypes"]["time"] = time.time()
+        if "devtypes" in wl:
+            wl["devtypes"].redraw = True
+    lock["device_types"].release()
     for devtype in cache["devtypes"]["dlist"]:
         if cfg["lab"]["DEVTYPE_LENMAX"] < len(devtype["name"]):
             cfg["lab"]["DEVTYPE_LENMAX"] = len(devtype["name"])
+
+def cache_thread():
+    while "exit" not in cache:
+        lock["cache"].acquire
+        update_cache()
+        lock["cache"].release
+        time.sleep(2)
 
 def main(stdscr):
     # Clear screen
@@ -1016,6 +1088,8 @@ def main(stdscr):
     curses.init_pair(L_INPUT, curses.COLOR_BLACK, curses.COLOR_WHITE)
     stdscr.timeout(500)
 
+    ct = threading.Thread(target=cache_thread)
+    ct.start()
 
     exit = False
     while not exit:
@@ -1023,7 +1097,7 @@ def main(stdscr):
         rows, cols = stdscr.getmaxyx()
         cfg["rows"] = rows
         cfg["cols"] = cols
-        update_cache()
+        #update_cache()
 
         for winwin in list(wl):
             if wl[winwin].close:
@@ -1032,7 +1106,7 @@ def main(stdscr):
         if cfg["swin"] == None:
             cfg["swin"] = curses.newwin(3, cfg["cols"], 0, 0)
         cfg["swin"].erase()
-        cfg["swin"].addstr(0, 0, "Screen %dx%d Lab: %s Select: %d HELP: UP DOWN TAB [Q]uit [f]ilters [o]ptions" % (cols, rows, cfg["lab"]["name"], cfg["select"]))
+        cfg["swin"].addstr(0, 0, "Screen %dx%d Lab: %s Select: %d HELP: UP DOWN TAB [Q]uit [f]ilters [o]ptions state=%d" % (cols, rows, cfg["lab"]["name"], cfg["select"], state))
         if cfg["tab"] == 0:
             cfg["swin"].addstr(1, 0, "WORKERS HELP: UP DOWN space")
         if cfg["tab"] == 1:
@@ -1281,6 +1355,8 @@ def main(stdscr):
             cfg["tab"] = 1
         if c == 27 or c == ord('q'):
                 exit = True
+                cache["exit"] = True
+                ct.join()
     # this is exit
     if cfg["debug"] != None:
         cfg["debug"].close()

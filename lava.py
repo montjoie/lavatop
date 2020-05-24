@@ -81,6 +81,7 @@ def debug(msg):
 
 def switch_lab(usefirst):
     global cache
+
     # closes some lab specific window
     if "viewjob" in wl:
         del wl["viewjob"]
@@ -106,10 +107,10 @@ def switch_lab(usefirst):
         if cfg["lab"] != None and cfg["lab"]["name"] == new["name"]:
             return "already this lab"
         #real switch
-        lock["cache"].acquire
-        lock["workers"].acquire
-        lock["devices"].acquire
-        lock["jobs"].acquire
+        lock["cache"].acquire()
+        lock["workers"].acquire()
+        lock["devices"].acquire()
+        lock["jobs"].acquire()
         cfg["lab"] = new
         LAVAURI = new["lavauri"]
         cfg["lserver"] = xmlrpc.client.ServerProxy(LAVAURI, allow_none=True)
@@ -131,10 +132,10 @@ def switch_lab(usefirst):
         cfg["swk"] = None
         cfg["sdev"] = None
         debug("Switched to %s\n" % new["name"])
-        lock["workers"].acquire
-        lock["devices"].acquire
-        lock["jobs"].acquire
-        lock["cache"].release
+        lock["workers"].release()
+        lock["devices"].release()
+        lock["jobs"].release()
+        lock["cache"].release()
         return "Switched to %s" % new["name"]
     return "switch error"
 
@@ -1066,9 +1067,9 @@ def update_cache():
 
 def cache_thread():
     while "exit" not in cache:
-        lock["cache"].acquire
+        lock["cache"].acquire()
         update_cache()
-        lock["cache"].release
+        lock["cache"].release()
         time.sleep(2)
 
 def main(stdscr):

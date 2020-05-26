@@ -322,7 +322,7 @@ class win_devtypes(lava_win):
                 self.cselect = self.offset
             self.redraw = True
             return True
-        if c == ord("x"):
+        if c == ord("x") or c == 27:
             self.hide = True
             return True
         if self.cselect > self.display + self.offset:
@@ -979,7 +979,7 @@ class win_options(lava_win):
                 wl["joblist"].pad = None
                 wl["joblist"].redraw = True
             return True
-        if c == ord("x"):
+        if c == ord("x") or c == 27:
             self.close = True
             return True
         return False
@@ -1042,7 +1042,7 @@ class win_filters(lava_win):
             else:
                 cfg["jobs"]["filter"].append("devtypes")
             return True
-        if c == ord("x"):
+        if c == ord("x") or c == 27:
             self.close = True
             return True
         return False
@@ -1135,7 +1135,7 @@ class win_users(lava_win):
         #    self.offset += 1
         #if self.cselect <= self.offset and self.offset > 0:
         #    self.offset -= 1
-        if c == ord("x"):
+        if c == ord("x") or c == 27:
             self.hide = True
             return True
         return h
@@ -1520,12 +1520,6 @@ def main(stdscr):
             else:
                 msg = "Invalid"
                 cmd = 0
-        elif c == ord('x'):
-            # close
-            if "devtypes" in wl:
-                del wl["devtypes"]
-            elif "viewjob" in wl:
-                del wl["viewjob"]
         elif c == ord('r'):
             if cfg["tab"] == 0:
                 cache["workers"]["time"] = 0

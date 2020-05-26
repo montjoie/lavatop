@@ -131,7 +131,8 @@ def switch_lab(usefirst):
             wl["devices"].select = None
         cfg["swk"] = None
         cfg["sdev"] = None
-        debug("Switched to %s\n" % new["name"])
+        cfg["lab"]["version"] = cfg["lserver"].system.version()
+        debug("Switched to %s %s\n" % (new["name"], cfg["lab"]["version"]))
         lock["workers"].release()
         lock["devices"].release()
         lock["jobs"].release()

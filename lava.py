@@ -44,6 +44,8 @@ cfg["swin"] = None
 #second colum start
 cfg["sc"] = 0
 
+cfg["filtering"] = True
+
 wl = {}
 
 lock = {}
@@ -165,6 +167,8 @@ class lava_win:
         # current selection
         self.cselect = 1
         self.select = None
+        # string explaining what affected the view
+        self.fview = ""
 
     def setup(self, sx, sy, wx, wy):
         # recreate window if size change
@@ -197,7 +201,7 @@ class win_devtypes(lava_win):
         # check need of redraw
         if not self.redraw:
             return
-
+        self.fview = ""
         lock["device_types"].acquire()
         self.win.erase()
         self.pad.erase()
@@ -208,6 +212,20 @@ class win_devtypes(lava_win):
             self.select = []
         for devtype in cache["devtypes"]["dlist"]:
             x = 0
+            # filtering by worker
+            if "workers" in wl and wl["workers"].select != None and cfg["filtering"]:
+                self.fview = "filter: worker"
+                display = False
+                lock["devices"].acquire()
+                for device in cache["device"]["dlist"]:
+                    ddetail = cache["device"][device["hostname"]]
+                    wkname = ddetail["worker"]
+                    if wkname in wl["workers"].select:
+                        if devtype["name"] == device["type"]:
+                            display = True
+                lock["devices"].release()
+                if not display:
+                    continue
             self.count += 1
             if devtype["name"] in self.select:
                 self.pad.addstr(y, 0, "[x]")
@@ -259,7 +277,7 @@ class win_devtypes(lava_win):
     def show(self, cfg):
         # title
         x = 1
-        self.win.addstr(1, x, "Viewing %d-%d/%d" % (self.offset + 1, self.offset + self.display, self.count))
+        self.win.addstr(1, x, "Viewing %d-%d/%d %s" % (self.offset + 1, self.offset + self.display, self.count, self.fview))
         x += cfg["lab"]["DEVTYPE_LENMAX"] + 1
         self.win.addstr(1, x, "Count")
         x += 6
@@ -1412,6 +1430,8 @@ def main(stdscr):
                 wl["users"].hide = not wl["users"].hide
             else:
                 wl["users"] = win_users()
+        elif c == ord('z'):
+            cfg["filtering"] = not cfg["filtering"]
         elif c == 9:
             # TAB
             if cfg["tab"] == 0:

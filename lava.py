@@ -503,6 +503,8 @@ class win_workers(lava_win):
                 self.wx + self.sx)
 
     def handle_key(self, c):
+        if "device" not in cache:
+            return False
         # this window should handle UP DOWN = space
         if c == curses.KEY_UP:
             self.cselect -= 1
@@ -516,7 +518,6 @@ class win_workers(lava_win):
             if self.cselect > self.count:
                 self.cselect = self.count
             self.redraw = True
-            cache["device"]["redraw"] = True
             return True
         if c == ord("="):
             self.select = []
@@ -743,6 +744,9 @@ class win_jobs(lava_win):
                     continue
                 if job["actual_device"] not in wl["devices"].select:
                     continue
+            if "users" in wl and "user_select" in cfg["jobs"]["filter"]:
+                if job["submitter"] not in wl["users"].select:
+                    continue
             x = 0
             ji += 1
             self.count = ji
@@ -917,12 +921,6 @@ class win_options(lava_win):
                 wl["joblist"].pad = None
                 wl["joblist"].redraw = True
             return True
-        if c == ord('1'):
-            if "devselect" in cfg["jobs"]["filter"]:
-                cfg["jobs"]["filter"].remove("devselect")
-            else:
-                cfg["jobs"]["filter"].append("devselect")
-            return True
         if c == ord("x"):
             self.close = True
             return True
@@ -935,10 +933,12 @@ class win_filters(lava_win):
         self.win.addstr(2, 2, "Devices filter")
         if "devselect" in cfg["jobs"]["filter"]:
             self.win.addstr(3, 2, "1 [x] Filter jobs from selected devices")
-            if "joblist" in wl:
-                wl["joblist"].redraw = True
         else:
             self.win.addstr(3, 2, "1 [ ] Filter jobs from selected devices")
+        if "user_select" in cfg["jobs"]["filter"]:
+            self.win.addstr(4, 2, "2 [x] Filter jobs from selected users")
+        else:
+            self.win.addstr(4, 2, "2 [ ] Filter jobs from selected users")
         self.win.addstr(20, 2, "Jobs filter")
 
     def show(self, cfg):
@@ -968,12 +968,110 @@ class win_filters(lava_win):
             else:
                 cfg["jobs"]["filter"].append("devselect")
             return True
+        if c == ord('2'):
+            if "user_select" in cfg["jobs"]["filter"]:
+                cfg["jobs"]["filter"].remove("user_select")
+            else:
+                cfg["jobs"]["filter"].append("user_select")
+            return True
         if c == ord("x"):
             self.close = True
             return True
         return False
 # end filters
 
+class win_users(lava_win):
+    def fill(self, cache, lserver, cfg):
+        if self.hide:
+            return
+        if not "users" in cache:
+            return
+        self.win.erase()
+        self.win.addstr(2, 2, "Users")
+        y = 3
+        self.count = 0
+        if self.select == None:
+            self.select = []
+        ui = 0
+        for user in cache["users"]:
+            x = 1
+            ui += 1
+            if user in self.select:
+                self.win.addstr(y + self.count, x, "[x]")
+            else:
+                self.win.addstr(y + self.count, x, "[ ]")
+            x += 4
+            if self.cselect == ui:
+                self.win.addstr(y + self.count, x, "%s" % user, curses.A_BOLD)
+            else:
+                self.win.addstr(y + self.count, x, "%s" % user)
+            self.count += 1
+        self.display = self.count
+
+    def show(self, cfg):
+        if self.hide:
+            return
+        self.box = True
+        ox = 0
+        oy = 0
+        if self.box:
+            ox = 1
+            oy = 1
+        # title
+        self.win.addstr(ox, oy, "Users %s %d %d-%d/%d" % (cfg["sjob"], self.cselect,
+            self.offset + 1, self.offset + self.display, self.count))
+
+        if self.box:
+            self.win.box("|", "-")
+        self.win.noutrefresh()
+        #self.pad.noutrefresh(self.offset, 0,
+        #    self.wy + oy + 1,
+        #    self.wx + ox,
+        #    self.wy + self.sy - oy - 1,
+        #    self.wx + self.sx - ox - 1)
+
+    def handle_key(self, c):
+        h = False
+        if c == curses.KEY_UP:
+            self.cselect -= 1
+            if self.cselect < 1:
+                self.cselect = 1
+            self.redraw = True
+            h = True
+        if c == curses.KEY_DOWN:
+            self.cselect += 1
+            if self.cselect > self.count:
+                self.cselect = self.count
+            self.redraw = True
+            h = True
+        if c == ord("="):
+            user = cache["users"][self.cselect - 1]
+            self.select = []
+            self.select.append(user)
+            self.redraw = True
+            if "joblist" in wl:
+                wl["joblist"].redraw = True
+            return True
+        if c == ord(" "):
+            user = cache["users"][self.cselect - 1]
+            if user in self.select:
+                self.select.remove(user)
+            else:
+                self.select.append(user)
+            self.redraw = True
+            if "joblist" in wl:
+                wl["joblist"].redraw = True
+            return True
+        # select go out of view
+        #if self.cselect > self.display + self.offset:
+        #    self.offset += 1
+        #if self.cselect <= self.offset and self.offset > 0:
+        #    self.offset -= 1
+        if c == ord("x"):
+            self.hide = True
+            return True
+        return h
+# end filters
 
 # TODO get limits here
 def update_cache():
@@ -1059,12 +1157,16 @@ def update_cache():
         lock["jobs"].release()
         if "joblist" in wl:
             wl["joblist"].redraw = True
+    users = []
     for job in cache["jobs"]["jlist"]:
+        if job["submitter"] not in users:
+            users.append(job["submitter"])
         jobid = str(job["id"])
         if len(jobid) > cfg["lab"]["JOB_LENMAX"]:
             cfg["lab"]["JOB_LENMAX"] = len(jobid) + 1
         if len(job["submitter"]) > cfg["lab"]["USER_LENMAX"]:
             cfg["lab"]["USER_LENMAX"] = len(job["submitter"])
+    cache["users"] = users
 
     if not "devtypes" in cache:
         cache["devtypes"] = {}
@@ -1181,6 +1283,11 @@ def main(stdscr):
 
         stdscr.noutrefresh()
 
+        if "users" in wl and not wl["users"].hide:
+            wl["users"].setup(cfg["cols"] - 8, cfg["rows"] - 8, 4, 4)
+            wl["users"].fill(cache, cfg["lserver"], cfg)
+            wl["users"].show(cfg)
+
         if "viewjob" in wl:
             wl["viewjob"].setup(cfg["cols"] - 8, cfg["rows"] - 8, 4, 4)
             wl["viewjob"].fill(cache, cfg["lserver"], cfg)
@@ -1216,6 +1323,9 @@ def main(stdscr):
         if "devtypes" in wl and not wl["devtypes"].hide:
             if wl["devtypes"].handle_key(c):
                 c = -1
+        if "users" in wl and not wl["users"].hide:
+            if wl["users"].handle_key(c):
+                c = -1
         if c > 0 and "viewjob" in wl:
             if wl["viewjob"].handle_key(c):
                 c = -1
@@ -1233,6 +1343,11 @@ def main(stdscr):
                 wl["devtypes"].hide = not wl["devtypes"].hide
             else:
                 wl["devtypes"] = win_devtypes()
+        elif c == curses.KEY_F2:
+            if "users" in wl:
+                wl["users"].hide = not wl["users"].hide
+            else:
+                wl["users"] = win_users()
         elif c == 9:
             # TAB
             if cfg["tab"] == 0:

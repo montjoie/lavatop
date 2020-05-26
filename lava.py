@@ -52,6 +52,7 @@ lock["workers"] = threading.Lock()
 lock["devices"] = threading.Lock()
 lock["device_types"] = threading.Lock()
 lock["cache"] = threading.Lock()
+lock["RPC"] = threading.Lock()
 state = 0
 
 cfg["debug"] = None
@@ -287,7 +288,9 @@ class win_view_job(lava_win):
     def fill(self, cache, lserver, cfg):
         # TODO handle cache expire
         if not self.jobid in cache:
+            lock["RPC"].acquire()
             r = lserver.scheduler.job_output(self.jobid)
+            lock["RPC"].release()
             logs = yaml.unsafe_load(r.data)
             cache[self.jobid] = logs
             self.redraw = True
@@ -983,7 +986,9 @@ def update_cache():
         cache["device"] = {}
         cache["device"]["time"] = 0
     if now - cache["device"]["time"] > cfg["devices"]["refresh"]:
+        lock["RPC"].acquire()
         cache["device"]["dlist"] = cfg["lserver"].scheduler.devices.list(True, True)
+        lock["RPC"].release()
         cache["device"]["time"] = time.time()
         if "devices" in wl:
             wl["devices"].redraw = True
@@ -993,7 +998,9 @@ def update_cache():
             cache["device"][dname] = {}
             cache["device"][dname]["time"] = 0
         if now - cache["device"][dname]["time"] > cfg["devices"]["refresh"] * 10:
+            lock["RPC"].acquire()
             cache["device"][dname] = cfg["lserver"].scheduler.devices.show(dname)
+            lock["RPC"].release()
             cache["device"][dname]["time"] = time.time()
             if "devices" in wl:
                 wl["devices"].redraw = True
@@ -1008,7 +1015,9 @@ def update_cache():
         cache["workers"]["detail"] = {}
         cache["workers"]["time"] = 0
     if now - cache["workers"]["time"] > cfg["workers"]["refresh"]:
+        lock["RPC"].acquire()
         cache["workers"]["wlist"] = cfg["lserver"].scheduler.workers.list()
+        lock["RPC"].release()
         cache["workers"]["time"] = time.time()
         if "workers" in wl:
             wl["workers"].redraw = True
@@ -1021,7 +1030,9 @@ def update_cache():
             cache["workers"]["detail"][worker] = {}
             cache["workers"]["detail"][worker]["time"] = 0
         if now - cache["workers"]["detail"][worker]["time"] > 10:
+            lock["RPC"].acquire()
             cache["workers"]["detail"][worker]["wdet"] = cfg["lserver"].scheduler.workers.show(worker)
+            lock["RPC"].release()
             cache["workers"]["detail"][worker]["time"] = time.time()
             if "workers" in wl:
                 wl["workers"].redraw = True
@@ -1036,7 +1047,9 @@ def update_cache():
         offset = 0
         fl = []
         while offset < cfg["jobs"]["maxfetch"]:
+            lock["RPC"].acquire()
             l = cfg["lserver"].scheduler.jobs.list(None, None, offset, 100, None, True)
+            lock["RPC"].release()
             #debug("Job load %d\n" % offset)
             fl += l
             offset += 100
@@ -1058,7 +1071,9 @@ def update_cache():
         cache["devtypes"]["time"] = 0
     lock["device_types"].acquire()
     if now - cache["devtypes"]["time"] > cfg["devtypes"]["refresh"]:
+        lock["RPC"].acquire()
         cache["devtypes"]["dlist"] = cfg["lserver"].scheduler.device_types.list()
+        lock["RPC"].release()
         cache["devtypes"]["time"] = time.time()
         if "devtypes" in wl:
             wl["devtypes"].redraw = True
@@ -1246,12 +1261,19 @@ def main(stdscr):
             if cmd == ord('h'):
                 if c == ord('u'):
                     msg = "Set %s to unknow" % cfg["sdev"]
-                    cfg["lserver"].scheduler.devices.update(cfg["sdev"], None, None, None, None, 'UNKNOWN')
+                    try:
+                        lock["RPC"].acquire()
+                        cfg["lserver"].scheduler.devices.update(cfg["sdev"], None, None, None, None, 'UNKNOWN')
+                        lock["RPC"].release()
+                    except e:
+                        msg = "Set %s to unknow FAILED" % cfg["sdev"]
                     cache["device"]["time"] = 0
                     cmd = 0
                 elif c == ord('m'):
                     msg = "Set %s to maintenance" % cfg["sdev"]
+                    lock["RPC"].acquire()
                     cfg["lserver"].scheduler.devices.update(cfg["sdev"], None, None, None, None, 'MAINTENANCE')
+                    lock["RPC"].release()
                     cache["device"]["time"] = 0
                     cmd = 0
                 elif c > 0:

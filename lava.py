@@ -1520,12 +1520,6 @@ def main(stdscr):
             else:
                 msg = "Invalid"
                 cmd = 0
-        elif c == ord('x'):
-            # close
-            if "devtypes" in wl:
-                del wl["devtypes"]
-            elif "viewjob" in wl:
-                del wl["viewjob"]
         elif c == ord('r'):
             if cfg["tab"] == 0:
                 cache["workers"]["time"] = 0
@@ -1557,14 +1551,20 @@ def main(stdscr):
                 wl["viewjob"].choose_job(cfg["sjob"])
             else:
                 msg = "Invalid"
+        elif c == ord('x') or c == 27 or c == ord('q'):
+            # close
+            if "devtypes" in wl:
+                del wl["devtypes"]
+            elif "viewjob" in wl:
+                del wl["viewjob"]
+            else:
+                exit = True
+                cache["exit"] = True
+                ct.join()
         if cfg["tab"] > 2:
             cfg["tab"] = 0
         if cfg["tab"] == 0 and not cfg["workers"]["enable"]:
             cfg["tab"] = 1
-        if c == 27 or c == ord('q'):
-                exit = True
-                cache["exit"] = True
-                ct.join()
     # this is exit
     if cfg["debug"] != None:
         cfg["debug"].close()

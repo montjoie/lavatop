@@ -771,12 +771,8 @@ class win_jobs(lava_win):
     def fill(self, cache, lserver, cfg):
         y = 0
         if self.pad == None:
-            if cfg["jobs"]["where"] == 1:
-                w = cfg["cols"] - 2
-            else:
-                w = cfg["cols"] - cfg["sc"] - 2
-            debug("Create jobpad w=%d\n" % w)
-            self.pad = curses.newpad(cfg["jobs"]["maxfetch"] * 2, w)
+            debug("Create jobpad w=%d\n" % (self.sx - 2))
+            self.pad = curses.newpad(cfg["jobs"]["maxfetch"] * 2, self.sx - 2)
             self.redraw = True
         ji = 0
         if not "jobs" in cache or not "jlist" in cache["jobs"]:

@@ -204,15 +204,26 @@ class win_devtypes(lava_win):
         self.redraw = False
         self.count = 0
         y = 1
+        if self.select == None:
+            self.select = []
         for devtype in cache["devtypes"]["dlist"]:
             x = 0
             self.count += 1
-            self.pad.addstr(y, x, devtype["name"])
+            if devtype["name"] in self.select:
+                self.pad.addstr(y, 0, "[x]")
+            else:
+                self.pad.addstr(y, 0, "[ ]")
+            x += 4
+            if self.cselect == y:
+                self.pad.addstr(y, x, devtype["name"], curses.A_BOLD)
+            else:
+                self.pad.addstr(y, x, devtype["name"])
             x += cfg["lab"]["DEVTYPE_LENMAX"] + 1
             self.pad.addstr(y, x, "%d" % devtype["devices"])
             # TODO ? installed template
             x += 6
             dc = 0
+            lock["devices"].acquire()
             for device in cache["device"]["dlist"]:
                 if device["type"] == devtype["name"] and device["state"] != 'Running' \
                     and device["health"] != 'Bad' \
@@ -235,6 +246,7 @@ class win_devtypes(lava_win):
             for device in cache["device"]["dlist"]:
                 if device["type"] == devtype["name"] and device["state"] == 'Running':
                     dc += 1
+            lock["devices"].release()
             if dc > 0:
                 self.pad.addstr(y, x, "%d" % dc)
             y += 1
@@ -264,7 +276,38 @@ class win_devtypes(lava_win):
             self.wx + self.sx - 4)
 
     def handle_key(self, c):
+        h = False
         # this window should handle PG UP PG DOWN
+        if c == curses.KEY_UP:
+            self.cselect -= 1
+            if self.cselect < 1:
+                self.cselect = 1
+            self.redraw = True
+            h = True
+        if c == curses.KEY_DOWN:
+            self.cselect += 1
+            if self.cselect > self.count:
+                self.cselect = self.count
+            self.redraw = True
+            h = True
+        if c == ord("="):
+            dtype = cache["devtypes"]["dlist"][self.cselect - 1]["name"]
+            self.select = []
+            self.select.append(dtype)
+            self.redraw = True
+            if "joblist" in wl:
+                wl["joblist"].redraw = True
+            return True
+        if c == ord(" "):
+            dtype = cache["devtypes"]["dlist"][self.cselect - 1]["name"]
+            if dtype in self.select:
+                self.select.remove(dtype)
+            else:
+                self.select.append(dtype)
+            self.redraw = True
+            if "joblist" in wl:
+                wl["joblist"].redraw = True
+            return True
         if c == curses.KEY_PPAGE:
             self.offset -= 5
             if self.offset < 0:
@@ -275,9 +318,18 @@ class win_devtypes(lava_win):
             self.offset += 5
             if self.offset > self.count:
                 self.offset = self.count
+            if self.cselect < self.offset:
+                self.cselect = self.offset
             self.redraw = True
             return True
-        return False
+        if c == ord("x"):
+            self.hide = True
+            return True
+        if self.cselect > self.display + self.offset:
+            self.offset += 1
+        if self.cselect <= self.offset and self.offset > 0:
+            self.offset -= 1
+        return h
 
 # end of device types #
 
@@ -511,7 +563,8 @@ class win_workers(lava_win):
             if self.cselect < 1:
                 self.cselect = 1
             self.redraw = True
-            cache["device"]["redraw"] = True
+            if "devices" in wl:
+                wl["devices"].redraw = True
             return True
         if c == curses.KEY_DOWN:
             self.cselect += 1
@@ -522,7 +575,8 @@ class win_workers(lava_win):
         if c == ord("="):
             self.select = []
             self.select.append(cfg["swk"])
-            cache["device"]["redraw"] = True
+            if "devices" in wl:
+                wl["devices"].redraw = True
             self.redraw = True
             return True
         if c == ord(" "):
@@ -530,7 +584,8 @@ class win_workers(lava_win):
                 self.select.remove(cfg["swk"])
             else:
                 self.select.append(cfg["swk"])
-            cache["device"]["redraw"] = True
+            if "devices" in wl:
+                wl["devices"].redraw = True
             self.redraw = True
             return True
         return False
@@ -747,6 +802,9 @@ class win_jobs(lava_win):
             if "users" in wl and "user_select" in cfg["jobs"]["filter"]:
                 if job["submitter"] not in wl["users"].select:
                     continue
+            if "devtypes" in wl and "devtypes" in cfg["jobs"]["filter"]:
+                if job["device_type"] not in wl["devtypes"].select:
+                    continue
             x = 0
             ji += 1
             self.count = ji
@@ -939,6 +997,10 @@ class win_filters(lava_win):
             self.win.addstr(4, 2, "2 [x] Filter jobs from selected users")
         else:
             self.win.addstr(4, 2, "2 [ ] Filter jobs from selected users")
+        if "devtypes" in cfg["jobs"]["filter"]:
+            self.win.addstr(5, 2, "3 [x] Filter jobs from selected device-types")
+        else:
+            self.win.addstr(5, 2, "3 [ ] Filter jobs from selected device-types")
         self.win.addstr(20, 2, "Jobs filter")
 
     def show(self, cfg):
@@ -973,6 +1035,12 @@ class win_filters(lava_win):
                 cfg["jobs"]["filter"].remove("user_select")
             else:
                 cfg["jobs"]["filter"].append("user_select")
+            return True
+        if c == ord('3'):
+            if "devtypes" in cfg["jobs"]["filter"]:
+                cfg["jobs"]["filter"].remove("devtypes")
+            else:
+                cfg["jobs"]["filter"].append("devtypes")
             return True
         if c == ord("x"):
             self.close = True
@@ -1293,7 +1361,7 @@ def main(stdscr):
             wl["viewjob"].fill(cache, cfg["lserver"], cfg)
             wl["viewjob"].show(cfg)
 
-        if "devtypes" in wl:
+        if "devtypes" in wl and not wl["devtypes"].hide:
             wl["devtypes"].setup(cfg["cols"] - 8, cfg["rows"] - 8, 4, 4)
             wl["devtypes"].fill(cache, cfg["lserver"], cfg)
             wl["devtypes"].show(cfg)

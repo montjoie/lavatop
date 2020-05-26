@@ -160,6 +160,7 @@ class lava_win:
         self.redraw = False
         self.box = False
         self.close = False
+        self.hide = False
         # current selection
         self.cselect = 1
         self.select = None
@@ -1191,13 +1192,13 @@ def main(stdscr):
         y += 1
         #msg = ""
         c = stdscr.getch()
-        if "options" in wl:
+        if "options" in wl and not wl["options"].hide:
             if wl["options"].handle_key(c):
                 c = -1
-        if "filters" in wl:
+        if "filters" in wl and not wl["filters"].hide:
             if wl["filters"].handle_key(c):
                 c = -1
-        if "devtypes" in wl:
+        if "devtypes" in wl and not wl["devtypes"].hide:
             if wl["devtypes"].handle_key(c):
                 c = -1
         if c > 0 and "viewjob" in wl:
@@ -1214,7 +1215,7 @@ def main(stdscr):
                 c = -1
         if c == curses.KEY_F1:
             if "devtypes" in wl:
-                del wl["devtypes"]
+                wl["devtypes"].hide = not wl["devtypes"].hide
             else:
                 wl["devtypes"] = win_devtypes()
         elif c == 9:

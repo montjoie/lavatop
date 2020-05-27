@@ -28,7 +28,6 @@ cfg["jobs"]["titletrunc"] = True
 cfg["jobs"]["filter"] = []
 cfg["jobs"]["maxfetch"] = 200
 
-cfg["tab"] = 0
 cfg["select"] = 1
 cfg["sjob"] = None
 cfg["dpad"] = None
@@ -81,6 +80,13 @@ def debug(msg):
         return
     cfg["debug"].write(msg)
     cfg["debug"].flush()
+
+def setfocus(wname):
+    if not wname in wl:
+        return
+    for w in wl:
+        wl[w].focus = False
+    wl[wname].focus = True
 
 def switch_lab(usefirst):
     global cache
@@ -164,6 +170,7 @@ class lava_win:
         self.box = False
         self.close = False
         self.hide = False
+        self.focus = False
         # current selection
         self.cselect = 1
         self.select = None
@@ -535,7 +542,7 @@ class win_workers(lava_win):
             else:
                 self.pad.addstr(y, 0, "[ ]")
             x = 4
-            if self.cselect == wi and cfg["tab"] == 0:
+            if self.cselect == wi and self.focus:
                 self.pad.addstr(y, x, worker, curses.A_BOLD)
                 cfg["swk"] = worker
             else:
@@ -677,7 +684,7 @@ class win_devices(lava_win):
                 self.pad.addstr(y, 0, "[x]")
             else:
                 self.pad.addstr(y, 0, "[ ]")
-            if self.cselect == di and cfg["tab"] == 1:
+            if self.cselect == di and self.focus:
                 self.pad.addstr(y, x, device["hostname"], curses.A_BOLD)
                 cfg["sdev"] = dname
             else:
@@ -702,7 +709,7 @@ class win_devices(lava_win):
             wkname = ddetail["worker"]
             if cache["workers"]["detail"][wkname]["wdet"]["state"] == 'Offline':
                 self.pad.addstr(y, x, wkname, curses.color_pair(1))
-            elif cfg["tab"] == 0 and cfg["swk"] != None and wkname in cfg["swk"]:
+            elif wl["workers"].focus and cfg["swk"] != None and wkname in cfg["swk"]:
                 self.pad.addstr(y, x, wkname, curses.A_BOLD)
             else:
                 self.pad.addstr(y, x, wkname)
@@ -825,7 +832,7 @@ class win_jobs(lava_win):
             jobid = str(job["id"])
             if jobid is int:
                 jobid = str(job["id"])
-            if self.cselect == ji and cfg["tab"] == 2:
+            if self.cselect == ji and self.focus:
                 self.pad.addstr(y, x, jobid, curses.A_BOLD)
                 cfg["sjob"] = jobid
             else:
@@ -843,7 +850,7 @@ class win_jobs(lava_win):
             self.pad.addstr(y, x, job["submitter"])
             x += cfg["lab"]["USER_LENMAX"] + 1
             if "actual_device" in job and job["actual_device"] != None:
-                if cfg["tab"] == 1 and cfg["sdev"] != None and job["actual_device"] in cfg["sdev"]:
+                if wl["devices"].focus and cfg["sdev"] != None and job["actual_device"] in cfg["sdev"]:
                     self.pad.addstr(y, x, job["actual_device"], curses.A_BOLD)
                 else:
                     self.pad.addstr(y, x, job["actual_device"])
@@ -1309,21 +1316,21 @@ def main(stdscr):
             cfg["swin"] = curses.newwin(3, cfg["cols"], 0, 0)
         cfg["swin"].erase()
         cfg["swin"].addstr(0, 0, "Screen %dx%d Lab: %s Select: %d HELP: UP DOWN TAB [Q]uit [f]ilters [o]ptions state=%d" % (cols, rows, cfg["lab"]["name"], cfg["select"], state))
-        if cfg["tab"] == 0:
+        #TODO rewrite this
+        if "workers" in wl and wl["workers"].focus:
             cfg["swin"].addstr(1, 0, "WORKERS HELP: UP DOWN space")
-        if cfg["tab"] == 1:
+        if "devices" in wl and wl["devices"].focus:
             cfg["swin"].addstr(1, 0, "DEVICES HELP: h+[um] s+[shn] UP DOWN space")
-        if cfg["tab"] == 2:
+        if "joblist" in wl and wl["joblist"].focus:
             cfg["swin"].addstr(1, 0, "JOBS HELP: v  PGDN PGUP x")
         cfg["swin"].addstr(2, 0, msg)
         cfg["swin"].noutrefresh()
-        if cfg["tab"] != 2:
-            cfg["sjob"] = None
 
         y = 3
         if cfg["workers"]["enable"]:
             if not "workers" in wl:
                 wl["workers"] = win_workers()
+                wl["workers"].focus = True
             # TODO the + 30 is for cleaning
             wl["workers"].setup(cfg["lab"]["WKNAME_LENMAX"] + 21 + 30, 100, 0, y)
             wl["workers"].fill(cache, cfg["lserver"], cfg)
@@ -1411,13 +1418,13 @@ def main(stdscr):
         if c > 0 and "viewjob" in wl:
             if wl["viewjob"].handle_key(c):
                 c = -1
-        if c > 0 and "workers" in wl and cfg["tab"] == 0:
+        if c > 0 and "workers" in wl and wl["workers"].focus:
             if wl["workers"].handle_key(c):
                 c = -1
-        if c > 0 and "joblist" in wl and cfg["tab"] == 2:
+        if c > 0 and "joblist" in wl and wl["joblist"].focus:
             if wl["joblist"].handle_key(c):
                 c = -1
-        if c > 0 and "devices" in wl and cfg["tab"] == 1:
+        if c > 0 and "devices" in wl and wl["devices"].focus:
             if wl["devices"].handle_key(c):
                 c = -1
         if c == curses.KEY_F1:
@@ -1434,22 +1441,22 @@ def main(stdscr):
             cfg["filtering"] = not cfg["filtering"]
         elif c == 9:
             # TAB
-            if cfg["tab"] == 0:
-                cfg["tab"] = 1
+            if wl["workers"].focus:
+                setfocus("devices")
                 if "devices" in wl:
                     wl["devices"].redraw = True
                 if "workers" in wl:
                     wl["workers"].redraw = True
                 msg = "Switched to devices tab"
-            elif cfg["tab"] == 1:
-                cfg["tab"] = 2
+            elif wl["devices"].focus:
+                setfocus("joblist")
                 if "devices" in wl:
                     wl["devices"].redraw = True
                 if "joblist" in wl:
                     wl["joblist"].redraw = True
                 msg = "Switched to jobs tab"
             else:
-                cfg["tab"] = 0
+                setfocus("workers")
                 if "workers" in wl:
                     wl["workers"].redraw = True
                 if "joblist" in wl:
@@ -1513,8 +1520,8 @@ def main(stdscr):
         elif c == ord('w'):
             # worker window
             cfg["workers"]["enable"] = not cfg["workers"]["enable"]
-            if not cfg["workers"]["enable"] and cfg["tab"] == 0:
-                cfg["tab"] = 1
+            if not cfg["workers"]["enable"] and wl["workers"].focus:
+                setfocus("devices")
             msg = "Windows worker"
         elif c == ord('j'):
             # jobs window
@@ -1530,19 +1537,12 @@ def main(stdscr):
             cmd = c
             msg = "lab switch: Next or lab number"
         elif c == ord('h'):
-            if cfg["tab"] == 1:
+            if wl["devices"].focus:
                 cmd = c
                 msg = "Set health of %s to " % cfg["sdev"]
             else:
                 msg = "Invalid"
                 cmd = 0
-        elif c == ord('r'):
-            if cfg["tab"] == 0:
-                cache["workers"]["time"] = 0
-            elif cfg["tab"] == 1:
-                cache["device"]["time"] = 0
-            else:
-                cache["jobs"]["time"] = 0
         elif c == ord('R'):
             #refresh all
             cache["workers"]["time"] = 0
@@ -1561,16 +1561,14 @@ def main(stdscr):
             cmd = c
             msg = "Sort by ? (h n s)"
         elif c == ord('v'):
-            if cfg["tab"] == 2:
+            if wl["joblist"].focus:
                 msg = "View job %s" % cfg["sjob"]
                 wl["viewjob"] = win_view_job()
                 wl["viewjob"].choose_job(cfg["sjob"])
             else:
                 msg = "Invalid"
-        if cfg["tab"] > 2:
-            cfg["tab"] = 0
-        if cfg["tab"] == 0 and not cfg["workers"]["enable"]:
-            cfg["tab"] = 1
+        if wl["workers"].focus and not cfg["workers"]["enable"]:
+            setfocus("devices")
         if c == 27 or c == ord('q'):
                 exit = True
                 cache["exit"] = True

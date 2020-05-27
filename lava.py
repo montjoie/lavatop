@@ -559,6 +559,11 @@ class win_workers(lava_win):
             x+= 7
             if "version" in wdet and wdet["version"] != None:
                 self.pad.addstr(y, x, wdet["version"])
+            elif worker == "lava-logs":
+                self.pad.addstr(y, x, cfg["lab"]["version"])
+            x += 8
+            self.pad.addstr(y, x, "%s" % wdet["job_limit"])
+            x += 2
             y += 1
         lock["workers"].release()
         # TODO job_limit:

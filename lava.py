@@ -637,11 +637,13 @@ class win_devices(lava_win):
         if not lock["workers"].acquire(False):
             return
         lock["devices"].acquire()
+        self.fview = ""
         self.pad.erase()
         self.win.erase()
         dlist = cache["device"]["dlist"]
         # sort by health
         if cfg["devices"]["sort"] == 1:
+            self.fview = "sortbyhealth"
             nlist = []
             for device in dlist:
                 if device["health"] == 'Bad':
@@ -660,6 +662,7 @@ class win_devices(lava_win):
                     nlist.append(device)
             dlist = nlist
         if cfg["devices"]["sort"] == 2:
+            self.fview = "sortbystate"
             nlist = []
             for device in dlist:
                 if device["state"] == 'Running':
@@ -673,12 +676,15 @@ class win_devices(lava_win):
             self.select = []
         di = 0
         y = 0
+        if "workers" in wl and wl["workers"].select != None and cfg["filtering"]:
+            self.fview += " filterworker"
         for device in dlist:
             dname = device["hostname"]
             ddetail = cache["device"][dname]
 
-            if "workers" in wl and wl["workers"].select != None and ddetail["worker"] not in wl["workers"].select:
-                continue
+            if "workers" in wl and wl["workers"].select != None and cfg["filtering"]:
+                if ddetail["worker"] not in wl["workers"].select:
+                    continue
             x = 4
             di += 1
             self.count = di
@@ -739,7 +745,7 @@ class win_devices(lava_win):
         self.win.addstr(ox, oy, "Devices %d-%d/%d %d %s" % (
             self.offset + 1, self.offset + self.display, self.count,
             self.cselect,
-            cfg["sdev"]))
+            self.fview))
 
         if self.box:
             self.win.box("|", "-")
@@ -812,22 +818,30 @@ class win_jobs(lava_win):
         if not lock["jobs"].acquire(False):
             return
         self.redraw = False
+        self.fview = ""
         self.win.erase()
         self.pad.erase()
         jlist = cache["jobs"]["jlist"]
-        for job in jlist:
-            # filter
+        if cfg["filtering"]:
             if "devselect" in cfg["jobs"]["filter"]:
-                if "actual_device" not in job:
-                    continue
-                if job["actual_device"] not in wl["devices"].select:
-                    continue
+                self.fview += "fdevice "
             if "users" in wl and "user_select" in cfg["jobs"]["filter"]:
-                if job["submitter"] not in wl["users"].select:
-                    continue
+                self.fview += "fuser "
             if "devtypes" in wl and "devtypes" in cfg["jobs"]["filter"]:
-                if job["device_type"] not in wl["devtypes"].select:
-                    continue
+                self.fview += "fdevtypes "
+        for job in jlist:
+            if cfg["filtering"]:
+                if "devselect" in cfg["jobs"]["filter"]:
+                    if "actual_device" not in job:
+                        continue
+                    if job["actual_device"] not in wl["devices"].select:
+                        continue
+                if "users" in wl and "user_select" in cfg["jobs"]["filter"]:
+                    if job["submitter"] not in wl["users"].select:
+                        continue
+                if "devtypes" in wl and "devtypes" in cfg["jobs"]["filter"]:
+                    if job["device_type"] not in wl["devtypes"].select:
+                        continue
             x = 0
             ji += 1
             self.count = ji
@@ -888,8 +902,8 @@ class win_jobs(lava_win):
             ox = 1
             oy = 1
         # title
-        self.win.addstr(ox, oy, "Jobs %s %d %d-%d/%d" % (cfg["sjob"], self.cselect,
-            self.offset + 1, self.offset + self.display, self.count))
+        self.win.addstr(ox, oy, "Jobs %s %d %d-%d/%d %s" % (cfg["sjob"], self.cselect,
+            self.offset + 1, self.offset + self.display, self.count, self.fview))
 
         if self.box:
             self.win.box("|", "-")

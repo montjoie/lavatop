@@ -10,16 +10,13 @@ import yaml
 cache = {}
 cfg = {}
 cfg["workers"] = {}
-cfg["workers"]["enable"] = True
 cfg["workers"]["refresh"] = 60
 cfg["devices"] = {}
-cfg["devices"]["enable"] = True
 cfg["devices"]["refresh"] = 20
 cfg["devices"]["sort"] = 0
 cfg["devtypes"] = {}
 cfg["devtypes"]["refresh"] = 60
 cfg["jobs"] = {}
-cfg["jobs"]["enable"] = True
 cfg["jobs"]["refresh"] = 20
 # where = 0 on right of screen, 1 is in classic tab
 cfg["jobs"]["where"] = 0
@@ -943,15 +940,15 @@ class win_jobs(lava_win):
 class win_options(lava_win):
     def fill(self, cache, lserver, cfg):
         self.win.erase()
-        if cfg["workers"]["enable"]:
+        if not wl["workers"].hide:
             self.win.addstr(2, 2, "[x] show [w]orkers tab")
         else:
             self.win.addstr(2, 2, "[ ] show [w]orkers tab")
-        if cfg["devices"]["enable"]:
+        if not wl["devices"].hide:
             self.win.addstr(3, 2, "[x] show [d]evices tab")
         else:
             self.win.addstr(3, 2, "[ ] show [d]evices tab")
-        if cfg["jobs"]["enable"]:
+        if not wl["joblist"].hide:
             self.win.addstr(4, 2, "[x] show jobs tab")
         else:
             self.win.addstr(4, 2, "[ ] show jobs tab")
@@ -1327,10 +1324,10 @@ def main(stdscr):
         cfg["swin"].noutrefresh()
 
         y = 3
-        if cfg["workers"]["enable"]:
-            if not "workers" in wl:
-                wl["workers"] = win_workers()
-                wl["workers"].focus = True
+        if not "workers" in wl:
+            wl["workers"] = win_workers()
+            wl["workers"].focus = True
+        if not wl["workers"].hide:
             # TODO the + 30 is for cleaning
             wl["workers"].setup(cfg["lab"]["WKNAME_LENMAX"] + 21 + 30, 100, 0, y)
             wl["workers"].fill(cache, cfg["lserver"], cfg)
@@ -1338,10 +1335,10 @@ def main(stdscr):
             y += wl["workers"].display + 2
 
         # devices
-        if cfg["devices"]["enable"]:
-            if not "devices" in wl:
-                wl["devices"] = win_devices()
-            if cfg["jobs"]["enable"] and cfg["jobs"]["where"] == 1:
+        if not "devices" in wl:
+            wl["devices"] = win_devices()
+        if not wl["devices"].hide:
+            if "joblist" in wl and not wl["joblist"].hide and cfg["jobs"]["where"] == 1:
                 y_max = rows - 15
             else:
                 y_max = rows
@@ -1355,9 +1352,9 @@ def main(stdscr):
             cfg["jobs"]["where"] = 1
             msg = "TOO SMALL %d %d %d" % (cfg["sc"], cfg["cols"], cfg["cols"] - 30)
             debug("Downgrade to no job windows sc=%d cols=%d\n" % (cfg["sc"], cfg["cols"]))
-        if cfg["jobs"]["enable"]:
-            if not "joblist" in wl:
-                wl["joblist"] = win_jobs()
+        if not "joblist" in wl:
+            wl["joblist"] = win_jobs()
+        if not wl["joblist"].hide:
             if cfg["jobs"]["where"] == 0:
                 # setup on "second column"
                 wl["joblist"].setup(cfg["cols"] - cfg["sc"]  - 1, cfg["rows"] - 3, cfg["sc"], 3)
@@ -1519,13 +1516,13 @@ def main(stdscr):
                 del wl["filters"]
         elif c == ord('w'):
             # worker window
-            cfg["workers"]["enable"] = not cfg["workers"]["enable"]
-            if not cfg["workers"]["enable"] and wl["workers"].focus:
+            wl["workers"].hide = not wl["workers"].hide
+            if wl["workers"].hide and wl["workers"].focus:
                 setfocus("devices")
             msg = "Windows worker"
         elif c == ord('j'):
             # jobs window
-            cfg["jobs"]["enable"] = not cfg["jobs"]["enable"]
+            wl["joblist"].hide = not wl["joblist"].hide
             msg = "Windows jobs"
         elif c == ord('O') or c == ord('o'):
             if "options" not in wl:
@@ -1567,7 +1564,7 @@ def main(stdscr):
                 wl["viewjob"].choose_job(cfg["sjob"])
             else:
                 msg = "Invalid"
-        if wl["workers"].focus and not cfg["workers"]["enable"]:
+        if "workers" in wl and wl["workers"].focus and wl["workers"].hide:
             setfocus("devices")
         if c == 27 or c == ord('q'):
                 exit = True

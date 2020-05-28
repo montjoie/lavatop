@@ -271,6 +271,14 @@ class win_devtypes(lava_win):
             lock["devices"].release()
             if dc > 0:
                 self.pad.addstr(y, x, "%d" % dc)
+            x += 7
+            # print queue
+            if "queue" in cache["devtypes"] and "qlist" in cache["devtypes"]["queue"]:
+                qlen = 0
+                for entry in cache["devtypes"]["queue"]["qlist"]:
+                    if entry["requested_device_type"] == devtype["name"]:
+                        qlen += 1
+                self.pad.addstr(y, x, "%d" % qlen)
             y += 1
         lock["device_types"].release()
         # decoration: 2, title 1
@@ -1308,6 +1316,8 @@ def update_cache():
     if not "devtypes" in cache:
         cache["devtypes"] = {}
         cache["devtypes"]["time"] = 0
+        cache["devtypes"]["queue"] = {}
+        cache["devtypes"]["queue"]["time"] = 0
     lock["device_types"].acquire()
     if now - cache["devtypes"]["time"] > cfg["devtypes"]["refresh"]:
         lock["RPC"].acquire()
@@ -1324,6 +1334,19 @@ def update_cache():
         state += 1
         if cfg["lab"]["DEVTYPE_LENMAX"] < len(devtype["name"]):
             cfg["lab"]["DEVTYPE_LENMAX"] = len(devtype["name"])
+    if now - cache["devtypes"]["queue"]["time"] > 60:
+        ql = []
+        offset = 0
+        while offset < 1000:
+            state += 1
+            queue = cfg["lserver"].scheduler.jobs.queue(None, offset, 100)
+            ql += queue
+            if len(queue) < 100:
+                break
+            offset += 100
+        cache["devtypes"]["queue"]["qlist"] = ql
+        cache["devtypes"]["queue"]["time"] = now
+    state = 600
 
 def cache_thread():
     while "exit" not in cache:

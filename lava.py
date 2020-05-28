@@ -468,6 +468,7 @@ class win_view_job(lava_win):
 
         self.win.box("|", "-")
         self.win.noutrefresh()
+        #debug("JOBVIEW off=%d w=%d s=%d count=%d display=%d\n" % (self.offset, self.wy, self.sy, self.count, self.display))
         self.pad.noutrefresh(self.offset, 0, self.wy + 2, self.wx + 1,
             self.wy + self.sy - 2,
             self.wx + self.sx - 2)
@@ -488,14 +489,14 @@ class win_view_job(lava_win):
             return True
         if c == curses.KEY_DOWN:
             self.offset += 1
-            if self.offset > self.count:
-                self.offset = self.count
+            if self.offset > self.count - self.display:
+                self.offset = self.count - self.display
             self.redraw = True
             return True
         if c == curses.KEY_NPAGE:
             self.offset += 20
-            if self.offset > self.count:
-                self.offset = self.count
+            if self.offset > self.count - self.display:
+                self.offset = self.count - self.display
             self.redraw = True
             return True
         return False

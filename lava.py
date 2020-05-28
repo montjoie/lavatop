@@ -499,6 +499,9 @@ class win_view_job(lava_win):
                 self.offset = self.count - self.display
             self.redraw = True
             return True
+        if c == ord("x") or c == 27:
+            self.close = True
+            return True
         return False
 
 # end of view job  #

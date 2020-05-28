@@ -565,6 +565,24 @@ class win_workers(lava_win):
             x += 8
             self.pad.addstr(y, x, "%s" % wdet["job_limit"])
             x += 2
+            dr = 0
+            dok = 0
+            dbad = 0
+            doff = 0
+            for device in wdet["devices"]:
+                for de in cache["device"]["dlist"]:
+                    if de["hostname"] != device:
+                        continue
+                    if de["state"] == 'Running':
+                        dr += 1
+                        continue
+                    if de["health"] == 'Bad':
+                        dbad += 1
+                    if de["health"] == 'Maintenance' or de["health"] == 'Retired':
+                        doff += 1
+                    if de["health"] == 'Good':
+                        dok += 1
+            self.pad.addstr(y, x, "%d/%d/%d/%d" % (dok, dr, dbad, doff))
             y += 1
         lock["workers"].release()
         # TODO job_limit:

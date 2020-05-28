@@ -586,11 +586,15 @@ class win_workers(lava_win):
                     if de["health"] == 'Good':
                         dok += 1
             self.pad.addstr(y, x, "%d/%d/%d/%d" % (dok, dr, dbad, doff))
+            # TODO real len
+            x += 10
             y += 1
         lock["workers"].release()
         # TODO job_limit:
         # TODO last_ping:
         self.display = self.count
+        if x > cfg["sc"]:
+            cfg["sc"] = x
 
     def show(self, cfg):
         # title
@@ -1396,6 +1400,8 @@ def main(stdscr):
         if not "joblist" in wl:
             wl["joblist"] = win_jobs()
         if not wl["joblist"].hide:
+            if wl["devices"].hide and wl["workers"].hide:
+                cfg["sc"] = 0
             if cfg["jobs"]["where"] == 0:
                 # setup on "second column"
                 wl["joblist"].setup(cfg["cols"] - cfg["sc"]  - 1, cfg["rows"] - 3, cfg["sc"], 3)
@@ -1561,10 +1567,12 @@ def main(stdscr):
             if wl["workers"].hide and wl["workers"].focus:
                 setfocus("devices")
             msg = "Windows worker"
+        elif c == ord('d'):
+            wl["devices"].hide = not wl["devices"].hide
+            if wl["devices"].hide and wl["devices"].focus:
+                setfocus("joblist")
         elif c == ord('j'):
-            # jobs window
             wl["joblist"].hide = not wl["joblist"].hide
-            msg = "Windows jobs"
         elif c == ord('O') or c == ord('o'):
             if "options" not in wl:
                 wl["options"] = win_options()

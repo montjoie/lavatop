@@ -1222,6 +1222,7 @@ def update_cache():
         if "devices" in wl:
             wl["devices"].redraw = True
     for device in cache["device"]["dlist"]:
+        state += 1
         dname = device["hostname"]
         if dname not in cache["device"]:
             cache["device"][dname] = {}
@@ -1238,7 +1239,7 @@ def update_cache():
     lock["devices"].release()
 
     lock["workers"].acquire()
-    state = 2
+    state = 200
     if not "workers" in cache:
         cache["workers"] = {}
         cache["workers"]["detail"] = {}
@@ -1251,6 +1252,7 @@ def update_cache():
         if "workers" in wl:
             wl["workers"].redraw = True
     for worker in cache["workers"]["wlist"]:
+        state += 1
         #debug("Refresh %s\n" % worker)
         if len(worker) > cfg["lab"]["WKNAME_LENMAX"]:
             cfg["lab"]["WKNAME_LENMAX"] = len(worker) + 1
@@ -1267,7 +1269,7 @@ def update_cache():
                 wl["workers"].redraw = True
     lock["workers"].release()
 
-    state = 3
+    state = 300
     if "jobs" not in cache:
         cache["jobs"] = {}
         cache["jobs"]["time"] = 0
@@ -1282,6 +1284,7 @@ def update_cache():
             #debug("Job load %d\n" % offset)
             fl += l
             offset += 100
+            state += 1
         lock["jobs"].acquire()
         cache["jobs"]["jlist"] = fl
         cache["jobs"]["time"] = time.time()
@@ -1290,6 +1293,7 @@ def update_cache():
             wl["joblist"].redraw = True
     users = []
     for job in cache["jobs"]["jlist"]:
+        state += 1
         if job["submitter"] not in users:
             users.append(job["submitter"])
         jobid = str(job["id"])
@@ -1299,6 +1303,8 @@ def update_cache():
             cfg["lab"]["USER_LENMAX"] = len(job["submitter"])
     cache["users"] = users
 
+    state = 400
+    now = time.time()
     if not "devtypes" in cache:
         cache["devtypes"] = {}
         cache["devtypes"]["time"] = 0
@@ -1311,7 +1317,11 @@ def update_cache():
         if "devtypes" in wl:
             wl["devtypes"].redraw = True
     lock["device_types"].release()
+
+    state = 500
+    now = time.time()
     for devtype in cache["devtypes"]["dlist"]:
+        state += 1
         if cfg["lab"]["DEVTYPE_LENMAX"] < len(devtype["name"]):
             cfg["lab"]["DEVTYPE_LENMAX"] = len(devtype["name"])
 

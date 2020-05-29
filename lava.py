@@ -41,6 +41,7 @@ cfg["swin"] = None
 cfg["sc"] = 0
 
 cfg["filtering"] = True
+cfg["live"] = False
 
 wl = {}
 
@@ -758,7 +759,13 @@ class win_devices(lava_win):
             x += cfg["lab"]["WKNAME_LENMAX"]
             if x > cfg["sc"]:
                 cfg["sc"] = x
-            #TODO current_job
+            jobid = device["current_job"]
+            if jobid != None:
+                self.pad.addstr(y, x, str(jobid))
+                x += cfg["lab"]["JOB_LENMAX"] + 1
+                if cfg["live"] and "joblog" in cache and jobid in cache["joblog"] and "lastmsg" in cache["joblog"][jobid]:
+                    spaces = self.sx - x - 2
+                    self.pad.addstr(y, x, cache["joblog"][jobid]["lastmsg"][:spaces])
             y += 1
         lock["workers"].release()
         lock["devices"].release()
@@ -1362,6 +1369,35 @@ def update_cache():
         cache["devtypes"]["queue"]["time"] = now
     state = 600
 
+    for device in cache["device"]["dlist"]:
+        jobid = device["current_job"]
+        state += 1
+        if not cfg["live"]:
+            continue
+        if jobid == None:
+            continue
+        if not "joblog" in cache:
+            cache["joblog"] = {}
+        now = time.time()
+        if jobid in cache["joblog"] and now - cache["joblog"][jobid]["time"] > 10:
+            continue
+        lock["RPC"].acquire()
+        r = cfg["lserver"].scheduler.job_output(jobid)
+        lock["RPC"].release()
+        logs = yaml.unsafe_load(r.data)
+        cache["joblog"][jobid] = {}
+        cache["joblog"][jobid]["logs"] = logs
+        cache["joblog"][jobid]["time"] = now
+        lastmsg = ""
+        for line in logs:
+            if line['lvl'] == 'info' or line['lvl'] == 'debug' or line['lvl'] == 'target' or line['lvl'] == 'input':
+                if isinstance(line["msg"], list):
+                    lastmsg = str(line["msg"])
+                else:
+                    lastmsg = line["msg"].rstrip('\0')
+        cache["joblog"][jobid]["lastmsg"] = lastmsg
+
+
 def cache_thread():
     while "exit" not in cache:
         lock["cache"].acquire()
@@ -1530,6 +1566,8 @@ def main(stdscr):
                 wl["users"] = win_users()
         elif c == ord('z'):
             cfg["filtering"] = not cfg["filtering"]
+        elif c == ord('l'):
+            cfg["live"] = not cfg["live"]
         elif c == 9:
             # TAB
             if wl["workers"].focus:

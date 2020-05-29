@@ -810,6 +810,20 @@ class win_devices(lava_win):
             h = True
             if "joblist" in wl:
                 wl["joblist"].redraw = True
+        if c == curses.KEY_PPAGE:
+            self.offset -= 20
+            if self.offset < 0:
+                self.offset = 0
+            self.redraw = True
+            h = True
+        if c == curses.KEY_NPAGE:
+            self.offset += 20
+            if self.offset > self.count - self.display:
+                self.offset = self.count - self.display
+            if self.cselect < self.offset:
+                self.cselect = self.offset
+            self.redraw = True
+            h = True
         if c == ord("="):
             self.select = []
             self.select.append(cfg["sdev"])

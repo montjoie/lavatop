@@ -1566,7 +1566,7 @@ def main(stdscr):
                 wl["users"] = win_users()
         elif c == ord('z'):
             cfg["filtering"] = not cfg["filtering"]
-        elif c == ord('l'):
+        elif c == ord('L'):
             cfg["live"] = not cfg["live"]
         elif c == 9:
             # TAB

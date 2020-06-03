@@ -713,6 +713,8 @@ class win_devices(lava_win):
         y = 0
         if "workers" in wl and wl["workers"].select != None and cfg["filtering"]:
             self.fview += " filterworker"
+        if cfg["live"]:
+            self.fview += " live"
         for device in dlist:
             dname = device["hostname"]
             ddetail = cache["device"][dname]
@@ -1390,7 +1392,7 @@ def update_cache():
         cache["joblog"][jobid]["time"] = now
         lastmsg = ""
         for line in logs:
-            if line['lvl'] == 'info' or line['lvl'] == 'debug' or line['lvl'] == 'target' or line['lvl'] == 'input':
+            if line['lvl'] == 'info':
                 if isinstance(line["msg"], list):
                     lastmsg = str(line["msg"])
                 else:

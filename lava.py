@@ -1627,16 +1627,19 @@ def main(stdscr):
                     cfg["devices"]["sort"] = 0
                     if "devices" in wl:
                         wl["devices"].redraw = True
+                    cmd = 0
                 elif c == ord('h'):
                     msg = "Sort by health"
                     cfg["devices"]["sort"] = 1
                     if "devices" in wl:
                         wl["devices"].redraw = True
+                    cmd = 0
                 elif c == ord('s'):
                     msg = "Sort by state"
                     cfg["devices"]["sort"] = 2
                     if "devices" in wl:
                         wl["devices"].redraw = True
+                    cmd = 0
                 else:
                     cmd = 0
                     msg = "Invalid sort"

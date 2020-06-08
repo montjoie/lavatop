@@ -1123,18 +1123,21 @@ class win_filters(lava_win):
                 cfg["jobs"]["filter"].remove("devselect")
             else:
                 cfg["jobs"]["filter"].append("devselect")
+            wl["joblist"].redraw = True
             return True
         if c == ord('2'):
             if "user_select" in cfg["jobs"]["filter"]:
                 cfg["jobs"]["filter"].remove("user_select")
             else:
                 cfg["jobs"]["filter"].append("user_select")
+            wl["joblist"].redraw = True
             return True
         if c == ord('3'):
             if "devtypes" in cfg["jobs"]["filter"]:
                 cfg["jobs"]["filter"].remove("devtypes")
             else:
                 cfg["jobs"]["filter"].append("devtypes")
+            wl["joblist"].redraw = True
             return True
         if c == ord("x") or c == 27:
             self.close = True

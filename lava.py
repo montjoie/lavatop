@@ -1031,7 +1031,7 @@ class win_options(lava_win):
         if cfg["jobs"]["where"] == 1:
             self.win.addstr(5, 2, "[ ] display [J]obs on the right")
         else:
-            self.win.addstr(5, 2, "[x] display [j]obs on the right")
+            self.win.addstr(5, 2, "[x] display [J]obs on the right")
         if cfg["jobs"]["title"]:
             self.win.addstr(6, 2, "[x] display job [t]itle")
         else:

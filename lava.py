@@ -1025,13 +1025,13 @@ class win_options(lava_win):
         else:
             self.win.addstr(3, 2, "[ ] show [d]evices tab")
         if not wl["joblist"].hide:
-            self.win.addstr(4, 2, "[x] show jobs tab")
+            self.win.addstr(4, 2, "[x] show [j]obs tab")
         else:
-            self.win.addstr(4, 2, "[ ] show jobs tab")
+            self.win.addstr(4, 2, "[ ] show [j]obs tab")
         if cfg["jobs"]["where"] == 1:
-            self.win.addstr(5, 2, "[ ] display jobs on the right")
+            self.win.addstr(5, 2, "[ ] display [J]obs on the right")
         else:
-            self.win.addstr(5, 2, "[x] display jobs on the right")
+            self.win.addstr(5, 2, "[x] display [j]obs on the right")
         if cfg["jobs"]["title"]:
             self.win.addstr(6, 2, "[x] display job [t]itle")
         else:
@@ -1041,7 +1041,7 @@ class win_options(lava_win):
         else:
             self.win.addstr(7, 2, "[ ] [T]runcate job title")
         self.win.addstr(2, 30, "DEVICENAME_LENMAX: %d" % cfg["lab"]["DEVICENAME_LENMAX"])
-        self.win.addstr(3, 30, "Job fetch max: %d" % cfg["jobs"]["maxfetch"])
+        self.win.addstr(3, 30, "Job fetch max: %d ([+]/[-])" % cfg["jobs"]["maxfetch"])
 
     def show(self, cfg):
         self.box = True
@@ -1072,6 +1072,12 @@ class win_options(lava_win):
             if "joblist" in wl:
                 wl["joblist"].pad = None
                 wl["joblist"].redraw = True
+            return True
+        if c == ord("J"):
+            if cfg["jobs"]["where"] == 1:
+                cfg["jobs"]["where"] = 0
+            else:
+                cfg["jobs"]["where"] = 1
             return True
         if c == ord("x") or c == 27:
             self.close = True

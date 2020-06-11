@@ -862,7 +862,7 @@ class win_jobs(lava_win):
         y = 0
         if self.pad == None:
             debug("Create jobpad w=%d\n" % (self.sx - 2))
-            self.pad = curses.newpad(cfg["jobs"]["maxfetch"] * 2, self.sx - 2)
+            self.pad = curses.newpad(cfg["jobs"]["maxfetch"] * 3, self.sx - 2)
             self.redraw = True
         ji = 0
         if not "jobs" in cache or not "jlist" in cache["jobs"]:
@@ -939,8 +939,16 @@ class win_jobs(lava_win):
                     self.pad.addstr(y, x, job["description"][:spaces])
                     y += 1
                 else:
+                    #PAS BO
+                    lines = len(job["description"]) - (self.sx - x - 2)
+                    yl = 2
+                    if lines > (self.sx - 2):
+                        yl += 1
+                        lines -= (self.sx - 2)
+                    if lines > (self.sx - 2):
+                        yl += 1
                     self.pad.addstr(y, x, job["description"])
-                    y += 2
+                    y += yl
             else:
                 y += 1
         lock["jobs"].release()

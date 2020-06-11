@@ -1680,8 +1680,10 @@ def main(stdscr):
             wl["devices"].hide = not wl["devices"].hide
             if wl["devices"].hide and wl["devices"].focus:
                 setfocus("joblist")
+            wl["workers"].redraw = True
         elif c == ord('j'):
             wl["joblist"].hide = not wl["joblist"].hide
+            wl["workers"].redraw = True
         elif c == ord('O') or c == ord('o'):
             if "options" not in wl:
                 wl["options"] = win_options()

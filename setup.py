@@ -22,7 +22,7 @@ setup(
     author='Corentin Labbe',
     author_email='clabbe.montjoie@gmail.com',
     packages=find_packages(),
-    scripts=["lava.py"],
+    scripts=["lavatop.py"],
     license='Apache2',
     long_description=read('README.md'),
     long_description_content_type='text/markdown',

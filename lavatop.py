@@ -529,7 +529,7 @@ class win_workers(lava_win):
         if self.count < wmax:
             self.pad = None
         if self.pad == None:
-            self.pad = curses.newpad(wmax + 1, 200)
+            self.pad = curses.newpad(wmax + 1, self.sx)
             self.redraw = True
         if not self.redraw:
             lock["workers"].release()
@@ -1448,6 +1448,8 @@ def main(stdscr):
     while not exit:
         now = time.time()
         rows, cols = stdscr.getmaxyx()
+        if "rows" not in cfg or "cols" not in cfg or rows != cfg["rows"] or cols != cfg["cols"]:
+            debug("Screen is %dx%d\n" % (cols, rows))
         cfg["rows"] = rows
         cfg["cols"] = cols
         #update_cache()
@@ -1476,7 +1478,7 @@ def main(stdscr):
             wl["workers"].focus = True
         if not wl["workers"].hide:
             # TODO the + 30 is for cleaning
-            wl["workers"].setup(cfg["lab"]["WKNAME_LENMAX"] + 21 + 30, 100, 0, y)
+            wl["workers"].setup(cfg["cols"], 100, 0, y)
             wl["workers"].fill(cache, cfg["lserver"], cfg)
             wl["workers"].show(cfg)
             y += wl["workers"].display + 2
@@ -1489,7 +1491,7 @@ def main(stdscr):
                 y_max = rows - 15
             else:
                 y_max = rows
-            wl["devices"].setup(cfg["cols"] - 1, y_max - y, 0, y)
+            wl["devices"].setup(cfg["cols"], y_max - y, 0, y)
             wl["devices"].fill(cache, cfg["lserver"], cfg)
             wl["devices"].show(cfg)
             y += wl["devices"].display + 2

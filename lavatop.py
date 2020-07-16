@@ -1074,7 +1074,7 @@ class win_options(lava_win):
                 wl["joblist"].redraw = True
             return True
         if c == ord('-'):
-            cfg["jobs"]["maxfetch"] += 100
+            cfg["jobs"]["maxfetch"] -= 100
             if cfg["jobs"]["maxfetch"] < 100:
                 cfg["jobs"]["maxfetch"] = 100
             if "joblist" in wl:

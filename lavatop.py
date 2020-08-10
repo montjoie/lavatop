@@ -5,6 +5,7 @@ from curses import wrapper
 import xmlrpc.client
 import threading
 import time
+import re
 import yaml
 
 cache = {}
@@ -369,16 +370,22 @@ class win_view_job(lava_win):
         self.jobid = jobid
 
     def fill(self, cache, lserver, cfg):
-        # TODO handle cache expire
-        if not self.jobid in cache:
+        if not "joblog" in cache:
+            cache["joblog"] = {}
+        if not self.jobid in cache["joblog"]:
             lock["RPC"].acquire()
             r = lserver.scheduler.job_output(self.jobid)
             lock["RPC"].release()
             logs = yaml.unsafe_load(r.data)
-            cache[self.jobid] = logs
+            now = time.time()
+            cache["joblog"][self.jobid] = {}
+            cache["joblog"][self.jobid]["logs"] = logs
+            cache["joblog"][self.jobid]["time"] = now
             self.redraw = True
+            #with open('joblog-%s' % self.jobid, 'w') as outfile:
+            #    yaml.dump(logs, outfile, default_flow_style=False)
         else:
-            logs = cache[self.jobid]
+            logs = cache["joblog"][self.jobid]["logs"]
 
         # check need of redraw
         if not self.redraw:
@@ -392,19 +399,22 @@ class win_view_job(lava_win):
         linew = 500
         for line in logs:
             if line['lvl'] == 'info' or line['lvl'] == 'debug' or line['lvl'] == 'target' or line['lvl'] == 'input':
+                msg = line["msg"]
                 if isinstance(line["msg"], list):
                     self.count += 1
-                    if linew < len(line["msg"]):
-                        linew = len(line["msg"])
+                    if linew < len(str(line["msg"])):
+                        linew = len(str(line["msg"]))
                 elif isinstance(line["msg"], dict):
                     for msg in line["msg"]:
-                        if linew < len(line["msg"]):
+                        if linew < len(msg):
                             linew = len(msg)
                         self.count += 1
                 else:
-                    if linew < len(line["msg"]):
-                        linew = len(line["msg"])
-                    self.count += 1
+                    lm = re.split("\\n", msg)
+                    for msg in lm:
+                        self.count += 1
+                        if linew < len(msg):
+                            linew = len(msg)
             elif line['lvl'] == 'results':
                 self.count += 1
                 if "error_msg" in line["msg"]:
@@ -414,7 +424,11 @@ class win_view_job(lava_win):
                             linew = len(eline)
             else:
                 self.count += 1
-        # TODO verify count/line change
+        if self.pad != None:
+            py, px = self.pad.getmaxyx()
+            if px != linew or py != self.count:
+                debug("Detect size change %d,%d to %d,%d\n" % (px, py, linew, self.count))
+                self.pad = None
         if self.pad == None:
             debug("Create job pad of %dx%d\n" % (self.count, linew))
             self.pad = curses.newpad(self.count, linew)
@@ -1388,6 +1402,8 @@ def update_cache():
         cache["devtypes"]["queue"]["time"] = now
     state = 600
 
+    if not "joblog" in cache:
+        cache["joblog"] = {}
     for device in cache["device"]["dlist"]:
         jobid = device["current_job"]
         state += 1
@@ -1395,11 +1411,26 @@ def update_cache():
             continue
         if jobid == None:
             continue
-        if not "joblog" in cache:
-            cache["joblog"] = {}
+        cache["joblog"][jobid] = {}
+        cache["joblog"][jobid]["time"] = 0
+
+    # dict changed size during iteration => list
+    for jobid in list(cache["joblog"]):
         now = time.time()
         if jobid in cache["joblog"] and now - cache["joblog"][jobid]["time"] > 10:
             continue
+        lock["RPC"].acquire()
+        jobd = cfg["lserver"].scheduler.jobs.show(jobid)
+        lock["RPC"].release()
+        if jobd["state"] == 'Finished':
+            purge = True
+            if "viewjob" in wl and wl["viewjob"].jobid == jobid:
+                purge = False
+                debug("Keep job %s\n" % jobid)
+            if purge:
+                debug("Purge job %s\n" % jobid)
+                del cache["joblog"][jobid]
+                continue
         lock["RPC"].acquire()
         r = cfg["lserver"].scheduler.job_output(jobid)
         lock["RPC"].release()
@@ -1415,6 +1446,8 @@ def update_cache():
                 else:
                     lastmsg = line["msg"].rstrip('\0')
         cache["joblog"][jobid]["lastmsg"] = lastmsg
+        if "viewjob" in wl:
+            wl["viewjob"].redraw = True
 
 
 def cache_thread():

@@ -170,6 +170,7 @@ class lava_win:
         self.close = False
         self.hide = False
         self.focus = False
+        self.autoscroll = False
         # current selection
         self.cselect = 1
         self.select = None
@@ -432,6 +433,10 @@ class win_view_job(lava_win):
         if self.pad == None:
             debug("Create job pad of %dx%d\n" % (self.count, linew))
             self.pad = curses.newpad(self.count, linew)
+
+        if self.autoscroll:
+            self.offset = self.count - self.display
+
         self.pad.erase()
         y = 2
         for line in logs:
@@ -489,6 +494,9 @@ class win_view_job(lava_win):
         x = 1
         self.win.addstr(1, x, "Viewing %s %d-%d/%d" % (self.jobid, self.offset + 1, self.offset + self.display, self.count))
 
+        if self.autoscroll:
+            self.win.addstr(1, 30, "scroll")
+
         self.win.box("|", "-")
         self.win.noutrefresh()
         #debug("JOBVIEW off=%d w=%d s=%d count=%d display=%d\n" % (self.offset, self.wy, self.sy, self.count, self.display))
@@ -521,6 +529,9 @@ class win_view_job(lava_win):
             if self.offset > self.count - self.display:
                 self.offset = self.count - self.display
             self.redraw = True
+            return True
+        if c == curses.KEY_F3:
+            self.autoscroll = not self.autoscroll
             return True
         if c == ord("x") or c == 27:
             self.close = True

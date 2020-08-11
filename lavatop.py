@@ -837,6 +837,8 @@ class win_devices(lava_win):
             self.offset -= 20
             if self.offset < 0:
                 self.offset = 0
+            if self.cselect > self.offset + self.display:
+                self.cselect = self.offset + self.display
             self.redraw = True
             h = True
         if c == curses.KEY_NPAGE:
@@ -1017,6 +1019,8 @@ class win_jobs(lava_win):
             self.offset -= 20
             if self.offset < 0:
                 self.offset = 0
+            if self.cselect > self.offset + self.display:
+                self.cselect = self.offset + self.display
             self.redraw = True
             h = True
         if c == curses.KEY_NPAGE:

@@ -375,8 +375,13 @@ class win_view_job(lava_win):
             cache["joblog"] = {}
         if not self.jobid in cache["joblog"]:
             lock["RPC"].acquire()
-            r = lserver.scheduler.job_output(self.jobid)
+            try:
+                r = lserver.scheduler.job_output(self.jobid)
+            except xmlrpc.client.Fault:
+                r = None
             lock["RPC"].release()
+            if r == None:
+                return
             logs = yaml.unsafe_load(r.data)
             now = time.time()
             cache["joblog"][self.jobid] = {}

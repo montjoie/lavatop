@@ -943,7 +943,10 @@ class win_jobs(lava_win):
             elif job["health"] == 'Complete':
                 self.pad.addstr(y, x, job["health"], curses.color_pair(2))
             elif job["health"] == 'Unknown':
-                self.pad.addstr(y, x, job["health"], curses.color_pair(3))
+                if job["state"] == 'Running':
+                    self.pad.addstr(y, x, "Running", curses.color_pair(L_YELLOW))
+                else:
+                    self.pad.addstr(y, x, job["health"], curses.color_pair(3))
             else:
                 self.pad.addstr(y, x, job["health"])
             x += 11

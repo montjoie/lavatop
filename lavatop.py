@@ -1445,7 +1445,7 @@ def update_cache():
     # dict changed size during iteration => list
     for jobid in list(cache["joblog"]):
         now = time.time()
-        if jobid in cache["joblog"] and now - cache["joblog"][jobid]["time"] > 10:
+        if jobid in cache["joblog"] and now - cache["joblog"][jobid]["time"] < 10:
             continue
         lock["RPC"].acquire()
         jobd = cfg["lserver"].scheduler.jobs.show(jobid)

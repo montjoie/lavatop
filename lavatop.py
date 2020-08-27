@@ -969,6 +969,11 @@ class win_jobs(lava_win):
             if cfg["jobs"]["title"]:
                 if cfg["jobs"]["titletrunc"]:
                     spaces = self.sx - x - 2
+                    if spaces < 10:
+                        cfg["jobs"]["where"] = 1
+                        self.redraw = True
+                        lock["jobs"].release()
+                        return
                     #if spaces > len(job["description"]):
                     #    spaces = len(job["description"])
                     self.pad.addstr(y, x, job["description"][:spaces])

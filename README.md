@@ -45,3 +45,16 @@ labs:
   - name: LAVAlab
     lavauri: http://admin:token@127.0.0.1/RPC2
 ```
+
+## config.yaml
+This is work in progress
+```
+autosave:
+  worker:
+    select: bool to choose to save worker selection
+workers:
+  labname
+  - list of workers selected
+devices:
+  sort: type of sort
+```

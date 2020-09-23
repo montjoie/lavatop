@@ -74,6 +74,12 @@ except IOError:
     sys.exit(1)
 labs = yaml.safe_load(tlabsfile)
 
+try:
+    configfile = open("config.yaml")
+    config = yaml.safe_load(configfile)
+except IOError:
+    config = {}
+
 def debug(msg):
     if cfg["debug"] == None:
         return
@@ -86,6 +92,16 @@ def setfocus(wname):
     for w in wl:
         wl[w].focus = False
     wl[wname].focus = True
+
+def workers_load_config():
+    debug("workers_load_config\n")
+    if "workers" not in wl:
+        return
+    if "workers" in config:
+        debug("Found workers in config\n")
+        if cfg["lab"]["name"] in config["workers"]:
+            debug("Found %s in config/workers\n" % cfg["lab"]["name"])
+            wl["workers"].select = config["workers"][cfg["lab"]["name"]]
 
 def switch_lab(usefirst):
     global cache
@@ -135,6 +151,7 @@ def switch_lab(usefirst):
             cfg["lab"]["USER_LENMAX"] = 10
         if "workers" in wl:
             wl["workers"].select = None
+            workers_load_config()
         if "devices" in wl:
             wl["devices"].select = None
         cfg["swk"] = None
@@ -1537,6 +1554,7 @@ def main(stdscr):
         if not "workers" in wl:
             wl["workers"] = win_workers()
             wl["workers"].focus = True
+            workers_load_config()
         if not wl["workers"].hide:
             # TODO the + 30 is for cleaning
             wl["workers"].setup(cfg["cols"], 100, 0, y)
@@ -1792,7 +1810,23 @@ def main(stdscr):
                 cache["exit"] = True
                 ct.join()
     # this is exit
-    if cfg["debug"] != None:
-        cfg["debug"].close()
 
 wrapper(main)
+
+if "autosave" in config:
+    debug("Autosave is enabled\n")
+    if "workers" in config["autosave"]:
+        debug("Autosave for workers\n")
+        if "select" in config["autosave"]["workers"]:
+            if "workers" not in config:
+                config["workers"] = {}
+            config["workers"][cfg["lab"]["name"]] = wl["workers"].select
+    if "devices" in config["autosave"]:
+        if "devices" not in config:
+            config["devices"] = {}
+        config["devices"]["sort"] = cfg["devices"]["sort"]
+    with open('config.yaml', 'w') as rfile:
+        yaml.dump(config, rfile, default_flow_style=False)
+
+if cfg["debug"] != None:
+    cfg["debug"].close()

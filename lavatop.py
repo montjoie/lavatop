@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 
+"""
+    lavatop: managing LAVA in console
+"""
 import curses
 from curses import wrapper
 import xmlrpc.client
 import threading
 import time
 import re
+import sys
 import yaml
 
 cache = {}
@@ -80,8 +84,11 @@ try:
 except IOError:
     config = {}
 
+"""
+    log debug in debug.log
+"""
 def debug(msg):
-    if cfg["debug"] == None:
+    if cfg["debug"] is None:
         return
     cfg["debug"].write(msg)
     cfg["debug"].flush()
@@ -121,14 +128,14 @@ def switch_lab(usefirst):
             break
         if cfg["lab"]["name"] == lab["name"]:
             usenext = True
-    if new == None:
+    if new is None:
         # use the first
         for lab in labs["labs"]:
             new = lab
             break
 
-    if new != None:
-        if cfg["lab"] != None and cfg["lab"]["name"] == new["name"]:
+    if new is not None:
+        if cfg["lab"] is not None and cfg["lab"]["name"] == new["name"]:
             return "already this lab"
         #real switch
         lock["cache"].acquire()
@@ -204,7 +211,7 @@ class lava_win:
         self.sy = sy
         self.wx = wx
         self.wy = wy
-        if self.win == None:
+        if self.win is None:
             debug("Create window %dx%d at %d,%d\n" % (sx, sy, wx, wy))
             self.win = curses.newwin(sy, sx, wy, wx)
             self.redraw = True
@@ -213,12 +220,12 @@ class lava_win:
     def fill(self, cache, lserver, cfg):
         return False
 
-    def handle_key(c):
+    def handle_key(self, c):
         return False
 
 class win_devtypes(lava_win):
     def fill(self, cache, lserver, cfg):
-        if self.pad == None:
+        if self.pad is None:
             self.pad = curses.newpad(100, 200)
         if not "devtypes" in cache:
             return
@@ -232,12 +239,12 @@ class win_devtypes(lava_win):
         self.redraw = False
         self.count = 0
         y = 1
-        if self.select == None:
+        if self.select is None:
             self.select = []
         for devtype in cache["devtypes"]["dlist"]:
             x = 0
             # filtering by worker
-            if "workers" in wl and wl["workers"].select != None and cfg["filtering"]:
+            if "workers" in wl and wl["workers"].select is not None and cfg["filtering"]:
                 self.fview = "filter: worker"
                 display = False
                 lock["devices"].acquire()
@@ -322,8 +329,8 @@ class win_devtypes(lava_win):
         self.win.box("|", "-")
         self.win.noutrefresh()
         self.pad.noutrefresh(self.offset, 0, self.wy + 2, self.wx + 1,
-            self.wy + self.sy - 4,
-            self.wx + self.sx - 4)
+                             self.wy + self.sy - 4,
+                             self.wx + self.sx - 4)
 
     def handle_key(self, c):
         h = False
@@ -397,7 +404,7 @@ class win_view_job(lava_win):
             except xmlrpc.client.Fault:
                 r = None
             lock["RPC"].release()
-            if r == None:
+            if r is None:
                 return
             logs = yaml.unsafe_load(r.data)
             now = time.time()
@@ -447,12 +454,12 @@ class win_view_job(lava_win):
                             linew = len(eline)
             else:
                 self.count += 1
-        if self.pad != None:
+        if self.pad is not None:
             py, px = self.pad.getmaxyx()
             if px != linew or py != self.count:
                 debug("Detect size change %d,%d to %d,%d\n" % (px, py, linew, self.count))
                 self.pad = None
-        if self.pad == None:
+        if self.pad is None:
             debug("Create job pad of %dx%d\n" % (self.count, linew))
             self.pad = curses.newpad(self.count, linew)
 
@@ -476,7 +483,7 @@ class win_view_job(lava_win):
             if line['lvl'] == 'input':
                 color = L_INPUT
             if line['lvl'] == 'info' or line['lvl'] == 'debug' or line['lvl'] == 'target' or line['lvl'] == 'input':
-                if line["msg"] == None:
+                if line["msg"] is None:
                     continue
                 if isinstance(line["msg"], list):
                     self.pad.addstr(y, 0, str(line))
@@ -523,8 +530,8 @@ class win_view_job(lava_win):
         self.win.noutrefresh()
         #debug("JOBVIEW off=%d w=%d s=%d count=%d display=%d\n" % (self.offset, self.wy, self.sy, self.count, self.display))
         self.pad.noutrefresh(self.offset, 0, self.wy + 2, self.wx + 1,
-            self.wy + self.sy - 2,
-            self.wx + self.sx - 2)
+                             self.wy + self.sy - 2,
+                             self.wx + self.sx - 2)
 
     def handle_key(self, c):
         # this window should handle PG_UP PG_DOWN UP DOWN HOME END
@@ -575,7 +582,7 @@ class win_workers(lava_win):
         # if the number of worker changed, recreate window
         if self.count < wmax:
             self.pad = None
-        if self.pad == None:
+        if self.pad is None:
             self.pad = curses.newpad(wmax + 1, self.sx)
             self.redraw = True
         if not self.redraw:
@@ -586,7 +593,7 @@ class win_workers(lava_win):
         self.pad.erase()
         wlist = cache["workers"]["wlist"]
         wi = 0
-        if self.select == None:
+        if self.select is None:
             self.select = []
             for worker in wlist:
                 self.select.append(worker)
@@ -616,8 +623,8 @@ class win_workers(lava_win):
                 self.pad.addstr(y, x, wdet["health"], curses.color_pair(2))
             else:
                 self.pad.addstr(y, x, wdet["health"], curses.color_pair(1))
-            x+= 7
-            if "version" in wdet and wdet["version"] != None:
+            x += 7
+            if "version" in wdet and wdet["version"] is not None:
                 self.pad.addstr(y, x, wdet["version"])
             elif worker == "lava-logs":
                 self.pad.addstr(y, x, cfg["lab"]["version"])
@@ -658,10 +665,10 @@ class win_workers(lava_win):
 
         #self.win.box("|", "-")
         self.win.noutrefresh()
-        if self.pad != None:
+        if self.pad is not None:
             self.pad.noutrefresh(self.offset, 0, self.wy + 1, self.wx,
-                self.wy + self.sy,
-                self.wx + self.sx)
+                                 self.wy + self.sy,
+                                 self.wx + self.sx)
 
     def handle_key(self, c):
         if "device" not in cache:
@@ -702,7 +709,7 @@ class win_workers(lava_win):
 
 class win_devices(lava_win):
     def fill(self, cache, lserver, cfg):
-        if self.pad == None:
+        if self.pad is None:
             # TODO chnage 100
             self.pad = curses.newpad(100, self.sx)
             self.redraw = True
@@ -754,11 +761,11 @@ class win_devices(lava_win):
                     nlist.append(device)
             dlist = nlist
 
-        if self.select == None:
+        if self.select is None:
             self.select = []
         di = 0
         y = 0
-        if "workers" in wl and wl["workers"].select != None and cfg["filtering"]:
+        if "workers" in wl and wl["workers"].select is not None and cfg["filtering"]:
             self.fview += " filterworker"
         if cfg["live"]:
             self.fview += " live"
@@ -766,7 +773,7 @@ class win_devices(lava_win):
             dname = device["hostname"]
             ddetail = cache["device"][dname]
 
-            if "workers" in wl and wl["workers"].select != None and cfg["filtering"]:
+            if "workers" in wl and wl["workers"].select is not None and cfg["filtering"]:
                 if ddetail["worker"] not in wl["workers"].select:
                     continue
             x = 4
@@ -801,7 +808,7 @@ class win_devices(lava_win):
             wkname = ddetail["worker"]
             if cache["workers"]["detail"][wkname]["wdet"]["state"] == 'Offline':
                 self.pad.addstr(y, x, wkname, curses.color_pair(1))
-            elif wl["workers"].focus and cfg["swk"] != None and wkname in cfg["swk"]:
+            elif wl["workers"].focus and cfg["swk"] is not None and wkname in cfg["swk"]:
                 self.pad.addstr(y, x, wkname, curses.A_BOLD)
             else:
                 self.pad.addstr(y, x, wkname)
@@ -809,7 +816,7 @@ class win_devices(lava_win):
             if x > cfg["sc"]:
                 cfg["sc"] = x
             jobid = device["current_job"]
-            if jobid != None:
+            if jobid is not None:
                 self.pad.addstr(y, x, str(jobid))
                 x += cfg["lab"]["JOB_LENMAX"] + 1
                 if cfg["live"] and "joblog" in cache and jobid in cache["joblog"] and "lastmsg" in cache["joblog"][jobid]:
@@ -909,7 +916,7 @@ class win_devices(lava_win):
 class win_jobs(lava_win):
     def fill(self, cache, lserver, cfg):
         y = 0
-        if self.pad == None:
+        if self.pad is None:
             debug("Create jobpad w=%d\n" % (self.sx - 2))
             self.pad = curses.newpad(cfg["jobs"]["maxfetch"] * 3, self.sx - 2)
             self.redraw = True
@@ -974,8 +981,8 @@ class win_jobs(lava_win):
             x += 11
             self.pad.addstr(y, x, job["submitter"])
             x += cfg["lab"]["USER_LENMAX"] + 1
-            if "actual_device" in job and job["actual_device"] != None:
-                if wl["devices"].focus and cfg["sdev"] != None and job["actual_device"] in cfg["sdev"]:
+            if "actual_device" in job and job["actual_device"] is not None:
+                if wl["devices"].focus and cfg["sdev"] is not None and job["actual_device"] in cfg["sdev"]:
                     self.pad.addstr(y, x, job["actual_device"], curses.A_BOLD)
                 else:
                     self.pad.addstr(y, x, job["actual_device"])
@@ -1025,7 +1032,8 @@ class win_jobs(lava_win):
             oy = 1
         # title
         self.win.addstr(ox, oy, "Jobs %s %d %d-%d/%d %s" % (cfg["sjob"], self.cselect,
-            self.offset + 1, self.offset + self.display, self.count, self.fview))
+                        self.offset + 1, self.offset + self.display,
+                        self.count, self.fview))
 
         if self.box:
             self.win.box("|", "-")
@@ -1036,10 +1044,10 @@ class win_jobs(lava_win):
         #    cfg["cols"], cfg["rows"]
         #    ))
         self.pad.noutrefresh(self.offset, 0,
-            self.wy + oy + 1,
-            self.wx + ox,
-            self.wy + self.sy - oy - 1,
-            self.wx + self.sx - ox - 1)
+                             self.wy + oy + 1,
+                             self.wx + ox,
+                             self.wy + self.sy - oy - 1,
+                             self.wx + self.sx - ox - 1)
 
     def handle_key(self, c):
         h = False
@@ -1228,7 +1236,7 @@ class win_users(lava_win):
         self.win.addstr(2, 2, "Users")
         y = 3
         self.count = 0
-        if self.select == None:
+        if self.select is None:
             self.select = []
         ui = 0
         for user in cache["users"]:
@@ -1454,7 +1462,7 @@ def update_cache():
         state += 1
         if not cfg["live"]:
             continue
-        if jobid == None:
+        if jobid is None:
             continue
         cache["joblog"][jobid] = {}
         cache["joblog"][jobid]["time"] = 0
@@ -1522,8 +1530,8 @@ def main(stdscr):
     ct = threading.Thread(target=cache_thread)
     ct.start()
 
-    exit = False
-    while not exit:
+    needexit = False
+    while not needexit:
         now = time.time()
         rows, cols = stdscr.getmaxyx()
         if "rows" not in cfg or "cols" not in cfg or rows != cfg["rows"] or cols != cfg["cols"]:
@@ -1536,7 +1544,7 @@ def main(stdscr):
             if wl[winwin].close:
                 del wl[winwin]
 
-        if cfg["swin"] == None:
+        if cfg["swin"] is None:
             cfg["swin"] = curses.newwin(3, cfg["cols"], 0, 0)
         cfg["swin"].erase()
         cfg["swin"].addstr(0, 0, "Screen %dx%d Lab: %s Select: %d HELP: UP DOWN TAB [Q]uit [f]ilters [o]ptions state=%d" % (cols, rows, cfg["lab"]["name"], cfg["select"], state))
@@ -1700,7 +1708,7 @@ def main(stdscr):
                         lock["RPC"].acquire()
                         cfg["lserver"].scheduler.devices.update(cfg["sdev"], None, None, None, None, 'UNKNOWN')
                         lock["RPC"].release()
-                    except e:
+                    except xmlrpc.client.Fault:
                         msg = "Set %s to unknow FAILED" % cfg["sdev"]
                     cache["device"]["time"] = 0
                     cmd = 0
@@ -1806,9 +1814,9 @@ def main(stdscr):
         if "workers" in wl and wl["workers"].focus and wl["workers"].hide:
             setfocus("devices")
         if c == 27 or c == ord('q'):
-                exit = True
-                cache["exit"] = True
-                ct.join()
+            needexit = True
+            cache["exit"] = True
+            ct.join()
     # this is exit
 
 wrapper(main)
@@ -1828,5 +1836,5 @@ if "autosave" in config:
     with open('config.yaml', 'w') as rfile:
         yaml.dump(config, rfile, default_flow_style=False)
 
-if cfg["debug"] != None:
+if cfg["debug"] is not None:
     cfg["debug"].close()

@@ -955,6 +955,18 @@ class win_jobs(lava_win):
                 if "devtypes" in wl and "devtypes" in cfg["jobs"]["filter"]:
                     if job["device_type"] not in wl["devtypes"].select:
                         continue
+                if "running" in cfg["jobs"]["filter"]:
+                    if job["state"] == 'Running':
+                        continue
+                if "complete" in cfg["jobs"]["filter"]:
+                    if job["health"] == 'Complete':
+                        continue
+                if "incomplete" in cfg["jobs"]["filter"]:
+                    if job["health"] == 'Incomplete':
+                        continue
+                if "unknown" in cfg["jobs"]["filter"]:
+                    if job["health"] == 'Unknown' and job["state"] != 'Running':
+                        continue
             x = 0
             ji += 1
             self.count = ji
@@ -1177,6 +1189,22 @@ class win_filters(lava_win):
         else:
             self.win.addstr(5, 2, "3 [ ] Filter jobs from selected device-types")
         self.win.addstr(20, 2, "Jobs filter")
+        if "running" in cfg["jobs"]["filter"]:
+            self.win.addstr(21, 2, "4 [ ] Show running jobs")
+        else:
+            self.win.addstr(21, 2, "4 [x] Show running jobs")
+        if "complete" in cfg["jobs"]["filter"]:
+            self.win.addstr(22, 2, "5 [ ] Show complete jobs")
+        else:
+            self.win.addstr(22, 2, "5 [x] Show complete jobs")
+        if "incomplete" in cfg["jobs"]["filter"]:
+            self.win.addstr(23, 2, "6 [ ] Show incomplete jobs")
+        else:
+            self.win.addstr(23, 2, "6 [x] Show incomplete jobs")
+        if "unknown" in cfg["jobs"]["filter"]:
+            self.win.addstr(24, 2, "7 [ ] Show unknown jobs")
+        else:
+            self.win.addstr(24, 2, "7 [x] Show unknown jobs")
 
     def show(self, cfg):
         self.box = True
@@ -1218,6 +1246,34 @@ class win_filters(lava_win):
                 cfg["jobs"]["filter"].remove("devtypes")
             else:
                 cfg["jobs"]["filter"].append("devtypes")
+            wl["joblist"].redraw = True
+            return True
+        if c == ord('4'):
+            if "running" in cfg["jobs"]["filter"]:
+                cfg["jobs"]["filter"].remove("running")
+            else:
+                cfg["jobs"]["filter"].append("running")
+            wl["joblist"].redraw = True
+            return True
+        if c == ord('5'):
+            if "complete" in cfg["jobs"]["filter"]:
+                cfg["jobs"]["filter"].remove("complete")
+            else:
+                cfg["jobs"]["filter"].append("complete")
+            wl["joblist"].redraw = True
+            return True
+        if c == ord('6'):
+            if "incomplete" in cfg["jobs"]["filter"]:
+                cfg["jobs"]["filter"].remove("incomplete")
+            else:
+                cfg["jobs"]["filter"].append("incomplete")
+            wl["joblist"].redraw = True
+            return True
+        if c == ord('7'):
+            if "unknown" in cfg["jobs"]["filter"]:
+                cfg["jobs"]["filter"].remove("unknown")
+            else:
+                cfg["jobs"]["filter"].append("unknown")
             wl["joblist"].redraw = True
             return True
         if c == ord("x") or c == 27:

@@ -241,6 +241,19 @@ class win_devtypes(lava_win):
         y = 1
         if self.select is None:
             self.select = []
+        x = 4
+        self.pad.addstr(y, x, "devtype")
+        x += cfg["lab"]["DEVTYPE_LENMAX"] + 1
+        self.pad.addstr(y, x, "num")
+        x += 5
+        self.pad.addstr(y, x, "good")
+        x += 6
+        self.pad.addstr(y, x, "bad", curses.color_pair(L_RED))
+        x += 8
+        self.pad.addstr(y, x, "run")
+        x += 7
+        self.pad.addstr(y, x, "queue")
+        y += 1
         for devtype in cache["devtypes"]["dlist"]:
             x = 0
             # filtering by worker
@@ -280,16 +293,14 @@ class win_devtypes(lava_win):
                     and device["health"] != 'Retired':
                     dc += 1
             if dc > 0:
-                self.pad.addstr(y, x, "%d" % dc)
+                self.pad.addstr(y, x, "%d" % dc, curses.color_pair(L_GREEN))
             x += 5
             dc = 0
             for device in cache["device"]["dlist"]:
-                if device["type"] == devtype["name"] and (device["health"] == 'Bad'\
-                    or device["health"] == 'Maintenance' \
-                    or device["health"] == 'Retired'):
+                if device["type"] == devtype["name"] and device["health"] == 'Bad':
                     dc += 1
             if dc > 0:
-                self.pad.addstr(y, x, "%d" % dc)
+                self.pad.addstr(y, x, "%d" % dc, curses.color_pair(L_RED))
             x += 8
             dc = 0
             for device in cache["device"]["dlist"]:

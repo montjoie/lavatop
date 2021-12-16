@@ -1552,8 +1552,14 @@ def update_cache():
                 del cache["joblog"][jobid]
                 continue
         lock["RPC"].acquire()
-        r = cfg["lserver"].scheduler.job_output(jobid)
+        try:
+            r = cfg["lserver"].scheduler.job_output(jobid)
+        except xmlrpc.client.Fault:
+            r = None
+            continue
         lock["RPC"].release()
+        if r is None:
+            continue
         logs = yaml.unsafe_load(r.data)
         cache["joblog"][jobid] = {}
         cache["joblog"][jobid]["logs"] = logs

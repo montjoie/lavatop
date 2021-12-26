@@ -1558,7 +1558,6 @@ def update_cache():
             r = cfg["lserver"].scheduler.job_output(jobid)
         except xmlrpc.client.Fault:
             r = None
-            continue
         lock["RPC"].release()
         if r is None:
             continue

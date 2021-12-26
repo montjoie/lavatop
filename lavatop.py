@@ -1542,8 +1542,13 @@ def update_cache():
         if jobid in cache["joblog"] and now - cache["joblog"][jobid]["time"] < 10:
             continue
         lock["RPC"].acquire()
-        jobd = cfg["lserver"].scheduler.jobs.show(jobid)
+        try:
+            jobd = cfg["lserver"].scheduler.jobs.show(jobid)
+        except xmlrpc.client.Fault:
+            jobd = None
         lock["RPC"].release()
+        if jobd is None:
+            continue
         if jobd["state"] == 'Finished':
             purge = True
             if "viewjob" in wl and wl["viewjob"].jobid == jobid:

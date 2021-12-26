@@ -1513,7 +1513,9 @@ def update_cache():
         offset = 0
         while offset < 1000:
             state += 1
+            lock["RPC"].acquire()
             queue = cfg["lserver"].scheduler.jobs.queue(None, offset, 100)
+            lock["RPC"].release()
             ql += queue
             if len(queue) < 100:
                 break

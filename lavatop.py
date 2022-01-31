@@ -19,6 +19,7 @@ cfg["workers"]["refresh"] = 60
 cfg["devices"] = {}
 cfg["devices"]["refresh"] = 20
 cfg["devices"]["sort"] = 0
+cfg["devices"]["hideretired"] = False
 cfg["devtypes"] = {}
 cfg["devtypes"]["refresh"] = 60
 cfg["jobs"] = {}
@@ -741,6 +742,12 @@ class win_devices(lava_win):
         self.pad.erase()
         self.win.erase()
         dlist = cache["device"]["dlist"]
+        nlist = []
+        for device in dlist:
+            if cfg["devices"]["hideretired"] and device["health"] == 'Retired':
+                continue
+            nlist.append(device)
+        dlist = nlist
         # sort by health
         if cfg["devices"]["sort"] == 1:
             self.fview = "sortbyhealth"
@@ -758,7 +765,7 @@ class win_devices(lava_win):
                 if device["health"] == 'Maintenance':
                     nlist.append(device)
             for device in dlist:
-                if device["health"] == 'Retired':
+                if device["health"] == 'Retired' and not cfg["devices"]["hideretired"]:
                     nlist.append(device)
             dlist = nlist
         if cfg["devices"]["sort"] == 2:
@@ -1138,6 +1145,10 @@ class win_options(lava_win):
             self.win.addstr(7, 2, "[x] [T]runcate job title")
         else:
             self.win.addstr(7, 2, "[ ] [T]runcate job title")
+        if cfg["devices"]["hideretired"]:
+            self.win.addstr(7, 2, "[x] hide [r]etired DUTs")
+        else:
+            self.win.addstr(7, 2, "[ ] hide [r]etired DUTs")
         self.win.addstr(2, 30, "DEVICENAME_LENMAX: %d" % cfg["lab"]["DEVICENAME_LENMAX"])
         self.win.addstr(3, 30, "Job fetch max: %d ([+]/[-])" % cfg["jobs"]["maxfetch"])
 
@@ -1880,6 +1891,10 @@ def main(stdscr):
             cfg["jobs"]["titletrunc"] = not cfg["jobs"]["titletrunc"]
             if "joblist" in wl:
                 wl["joblist"].redraw = True
+        elif c == ord('r'):
+            cfg["devices"]["hideretired"] = not cfg["devices"]["hideretired"]
+            if "devices" in wl:
+                wl["devices"].redraw = True
         elif c == ord('s'):
             cmd = c
             msg = "Sort by ? (h n s)"

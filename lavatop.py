@@ -465,7 +465,10 @@ class win_view_job(lava_win):
                         if linew < len(eline):
                             linew = len(eline)
             else:
-                self.count += 1
+                for sline in line["msg"].rstrip('\0').split("\n"):
+                    if linew < len(sline):
+                        linew = len(sline)
+                    self.count += 1
         if self.pad is not None:
             py, px = self.pad.getmaxyx()
             if px != linew or py != self.count:
@@ -523,8 +526,22 @@ class win_view_job(lava_win):
                 self.pad.addstr(y, 0, str(line))
                 y += 1
             else:
-                self.pad.addstr(y, 0, line["msg"].rstrip('\0'))
-                y += 1
+                #py, px = self.pad.getmaxyx()
+                #debug("Write to y=%d len=%d,%d max=%d,%d\n" % (y,
+                #    len(line["msg"]),
+                #    len(line["msg"].rstrip('\0')),
+                #    px, py))
+                #if len(line["msg"]) > 500:
+                #    debug(line["lvl"])
+                #    debug(line["msg"])
+                debug("%s\n" % line["lvl"])
+                for sline in line["msg"].rstrip('\0').split("\n"):
+                    debug("ADD: %s\n" % sline)
+                    #debug("Write to y=%d len=%d,%d max=%d,%d\n" % (y,
+                    self.pad.addstr(y, 0, sline)
+                    y += 1
+                #self.pad.addstr(y, 0, line["msg"].rstrip('\0'))
+                #y += 1
         # decoration: 2, title 1
         self.display = self.sy - 2 - 1
         if self.display > self.count:

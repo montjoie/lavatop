@@ -1476,7 +1476,10 @@ def update_cache():
             cache["workers"]["detail"][worker]["time"] = 0
         if now - cache["workers"]["detail"][worker]["time"] > 10:
             lock["RPC"].acquire()
-            cache["workers"]["detail"][worker]["wdet"] = cfg["lserver"].scheduler.workers.show(worker)
+            try:
+                cache["workers"]["detail"][worker]["wdet"] = cfg["lserver"].scheduler.workers.show(worker)
+            except:
+                ignore = 0
             lock["RPC"].release()
             cache["workers"]["detail"][worker]["time"] = time.time()
             if "workers" in wl:

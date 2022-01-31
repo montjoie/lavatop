@@ -588,6 +588,10 @@ class win_view_job(lava_win):
                 self.offset = self.count - self.display
             self.redraw = True
             return True
+        if c == curses.KEY_END:
+            self.offset = self.count - self.display
+            self.redraw = True
+            return True
         if c == curses.KEY_F3:
             self.autoscroll = not self.autoscroll
             return True

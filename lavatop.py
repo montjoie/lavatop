@@ -111,8 +111,16 @@ def workers_load_config():
             debug("Found %s in config/workers\n" % cfg["lab"]["name"])
             wl["workers"].select = config["workers"][cfg["lab"]["name"]]
 
-def switch_lab(usefirst):
+def switch_lab(usefirst, selection=None):
     global cache
+    if not usefirst:
+        name = cfg["lab"]["name"]
+    else:
+        name = "first"
+    if isinstance(selection, int):
+        debug("Switch lab to n=%d from %s\n" % (selection, name))
+    else:
+        debug("Switch lab to %s from %s\n" % (str(selection), name))
 
     # closes some lab specific window
     if "viewjob" in wl:
@@ -120,15 +128,30 @@ def switch_lab(usefirst):
     if "workers" in wl:
         del wl["workers"]
     new = None
-    usenext = usefirst
+    i = 0
+    previous_lab = None
     for lab in labs["labs"]:
         if "disabled" in lab and lab["disabled"]:
             continue
-        if usenext:
+        if usefirst:
             new = lab
             break
+        if isinstance(selection, str) and selection == "next" and previous_lab is not None:
+            if cfg["lab"]["name"] == previous_lab["name"]:
+                debug("Choosen next lab\n")
+                new = lab
+                break
         if cfg["lab"]["name"] == lab["name"]:
-            usenext = True
+            if isinstance(selection, str) and selection == "previous":
+                debug("Choosen previous lab\n")
+                new = previous_lab
+                break
+        if isinstance(selection, int) and selection == i:
+            debug("Choose lab %d\n" % i)
+            new = lab
+            break
+        previous_lab = lab
+        i += 1
     if new is None:
         # use the first
         for lab in labs["labs"]:
@@ -1839,7 +1862,15 @@ def main(stdscr):
             elif cmd == ord('l'):
                 if c == ord('n'):
                     cmd = 0
-                    msg = switch_lab(False)
+                    msg = switch_lab(False, "next")
+                    stdscr.erase()
+                if c == ord('p'):
+                    cmd = 0
+                    msg = switch_lab(False, "previous")
+                    stdscr.erase()
+                if c >= ord('0') and c <= ord('9'):
+                    cmd = 0
+                    msg = switch_lab(False, int(c - ord('0')))
                     stdscr.erase()
             elif cmd == ord('s'):
                 if c == ord('n'):

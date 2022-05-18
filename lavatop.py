@@ -1684,7 +1684,7 @@ def main(stdscr):
         if cfg["swin"] is None:
             cfg["swin"] = curses.newwin(3, cfg["cols"], 0, 0)
         cfg["swin"].erase()
-        cfg["swin"].addstr(0, 0, "Screen %dx%d Lab: %s Select: %d HELP: UP DOWN TAB [Q]uit [f]ilters [o]ptions state=%d" % (cols, rows, cfg["lab"]["name"], cfg["select"], state))
+        cfg["swin"].addstr(0, 0, "Screen %dx%d Lab: %s Select: %d HELP: UP DOWN TAB [Q]uit [f]ilters [o]ptions state=%d F1-devtype F2-users" % (cols, rows, cfg["lab"]["name"], cfg["select"], state))
         #TODO rewrite this
         if "workers" in wl and wl["workers"].focus:
             cfg["swin"].addstr(1, 0, "WORKERS HELP: UP DOWN space")

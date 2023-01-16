@@ -1981,6 +1981,12 @@ def main(stdscr):
         elif c == ord('s'):
             cmd = c
             msg = "Sort by ? (h n s)"
+        elif c == ord('c'):
+            if wl["joblist"].focus:
+                msg = "Cancel %s" % cfg["sjob"]
+                lock["RPC"].acquire()
+                cfg["lserver"].scheduler.jobs.cancel(cfg["sjob"])
+                lock["RPC"].release()
         elif c == ord('v'):
             if wl["joblist"].focus:
                 msg = "View job %s" % cfg["sjob"]

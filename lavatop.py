@@ -559,7 +559,7 @@ class win_view_job(lava_win):
                 #    debug(line["lvl"])
                 #    debug(line["msg"])
                 debug("%s\n" % line["lvl"])
-                for sline in line["msg"].rstrip('\0').split("\n"):
+                for sline in line["msg"].rstrip('\0').replace(chr(0), "").split("\n"):
                     debug("ADD: %s\n" % sline)
                     #debug("Write to y=%d len=%d,%d max=%d,%d\n" % (y,
                     self.pad.addstr(y, 0, sline)

@@ -20,6 +20,7 @@ cfg["devices"] = {}
 cfg["devices"]["refresh"] = 20
 cfg["devices"]["sort"] = 0
 cfg["devices"]["hideretired"] = False
+cfg["devices"]["maxdevices"] = 100
 cfg["devtypes"] = {}
 cfg["devtypes"]["refresh"] = 60
 cfg["jobs"] = {}
@@ -765,9 +766,14 @@ class win_workers(lava_win):
 
 class win_devices(lava_win):
     def fill(self, cache, lserver, cfg):
+        if "device" in cache and "dlist" in cache["device"]:
+            maxdevices = len(cache["device"]["dlist"])
+            if maxdevices > cfg["devices"]["maxdevices"]:
+                debug("maxdevices=%d\n" % maxdevices)
+                cfg["devices"]["maxdevices"] = maxdevices
+                self.pad = None
         if self.pad is None:
-            # TODO chnage 100
-            self.pad = curses.newpad(100, self.sx)
+            self.pad = curses.newpad(cfg["devices"]["maxdevices"], self.sx)
             self.redraw = True
         if not self.redraw:
             return

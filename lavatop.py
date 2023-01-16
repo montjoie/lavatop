@@ -1459,7 +1459,14 @@ def update_cache():
         cache["device"]["time"] = 0
     if now - cache["device"]["time"] > cfg["devices"]["refresh"]:
         lock["RPC"].acquire()
-        cache["device"]["dlist"] = cfg["lserver"].scheduler.devices.list(True, True)
+        try:
+            if "dlist" in cache["device"]:
+                oldlist = cache["device"]["dlist"]
+            else:
+                oldlist = {}
+            cache["device"]["dlist"] = cfg["lserver"].scheduler.devices.list(True, True)
+        except:
+            cache["device"]["dlist"] = oldlist
         lock["RPC"].release()
         cache["device"]["time"] = time.time()
         if "devices" in wl:
@@ -1472,13 +1479,17 @@ def update_cache():
             cache["device"][dname]["time"] = 0
         if now - cache["device"][dname]["time"] > cfg["devices"]["refresh"] * 10:
             lock["RPC"].acquire()
-            cache["device"][dname] = cfg["lserver"].scheduler.devices.show(dname)
+            try:
+                cache["device"][dname] = cfg["lserver"].scheduler.devices.show(dname)
+            except:
+                cache["device"][dname] = {}
             lock["RPC"].release()
             cache["device"][dname]["time"] = time.time()
             if "devices" in wl:
                 wl["devices"].redraw = True
         if len(dname) > cfg["lab"]["DEVICENAME_LENMAX"]:
             cfg["lab"]["DEVICENAME_LENMAX"] = len(dname)
+            debug("DEVICENAME_LENMAX %d %s\n" % (len(dname), dname))
     lock["devices"].release()
 
     lock["workers"].acquire()
@@ -1489,7 +1500,10 @@ def update_cache():
         cache["workers"]["time"] = 0
     if now - cache["workers"]["time"] > cfg["workers"]["refresh"]:
         lock["RPC"].acquire()
-        cache["workers"]["wlist"] = cfg["lserver"].scheduler.workers.list()
+        try:
+            cache["workers"]["wlist"] = cfg["lserver"].scheduler.workers.list()
+        except:
+            cache["workers"]["wlist"] = {}
         lock["RPC"].release()
         cache["workers"]["time"] = time.time()
         if "workers" in wl:
@@ -1525,12 +1539,16 @@ def update_cache():
         fl = []
         while offset < cfg["jobs"]["maxfetch"]:
             lock["RPC"].acquire()
-            l = cfg["lserver"].scheduler.jobs.list(None, None, offset, 100, None, True)
+            try:
+                l = cfg["lserver"].scheduler.jobs.list(None, None, offset, 100, None, True)
+            except:
+                l = None
             lock["RPC"].release()
             #debug("Job load %d\n" % offset)
-            fl += l
-            offset += 100
-            state += 1
+            if l is not None:
+                fl += l
+                offset += 100
+                state += 1
         lock["jobs"].acquire()
         cache["jobs"]["jlist"] = fl
         cache["jobs"]["time"] = time.time()
@@ -1578,7 +1596,11 @@ def update_cache():
         while offset < 1000:
             state += 1
             lock["RPC"].acquire()
-            queue = cfg["lserver"].scheduler.jobs.queue(None, offset, 100)
+            try:
+                queue = cfg["lserver"].scheduler.jobs.queue(None, offset, 100)
+            except xmlrpc.client.Fault:
+                # TODO do better
+                queue = 100
             lock["RPC"].release()
             ql += queue
             if len(queue) < 100:
